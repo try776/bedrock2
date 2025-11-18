@@ -1,0 +1,116 @@
+{
+  "api": {
+    "bedrockAPI": {
+      "dependsOn": [
+        {
+          "attributes": [
+            "Name",
+            "Arn"
+          ],
+          "category": "function",
+          "resourceName": "bedrockFunction"
+        }
+      ],
+      "providerPlugin": "awscloudformation",
+      "service": "API Gateway"
+    }
+  },
+  "auth": {
+    "bedrockchatamplif": {
+      "dependsOn": [],
+      "frontendAuthConfig": {
+        "mfaConfiguration": "OFF",
+        "mfaTypes": [
+          "SMS"
+        ],
+        "passwordProtectionSettings": {
+          "passwordPolicyCharacters": [],
+          "passwordPolicyMinLength": 8
+        },
+        "signupAttributes": [
+          "EMAIL"
+        ],
+        "socialProviders": [],
+        "usernameAttributes": [],
+        "verificationMechanisms": [
+          "EMAIL"
+        ]
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "Cognito",
+      "serviceType": "managed"
+    }
+  },
+  "function": {
+    "bedrockFunction": {
+      "build": true,
+      "dependsOn": [
+        {
+          "attributes": [
+            "Name"
+          ],
+          "category": "function",
+          "resourceName": "osintWorker"
+        }
+      ],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "osintWorker": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_function_bedrockFunction_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "bedrockFunction"
+        }
+      ]
+    },
+    "AMPLIFY_function_bedrockFunction_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "bedrockFunction"
+        }
+      ]
+    },
+    "AMPLIFY_function_bedrockFunction_storageOsintjobsName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "bedrockFunction"
+        }
+      ]
+    },
+    "AMPLIFY_function_osintWorker_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "osintWorker"
+        }
+      ]
+    },
+    "AMPLIFY_function_osintWorker_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "osintWorker"
+        }
+      ]
+    },
+    "AMPLIFY_function_osintWorker_storageOsintjobsName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "osintWorker"
+        }
+      ]
+    }
+  }
+}

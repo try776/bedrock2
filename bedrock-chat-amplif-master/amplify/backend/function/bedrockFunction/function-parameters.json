@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "function": {
+      "osintWorker": [
+        "read",
+        "update"
+      ]
+    }
+  },
+  "lambdaLayers": [],
+  "environmentVariableList": [
+    {
+      "cloudFormationParameterName": "storageOsintjobsName",
+      "environmentVariableName": "STORAGE_OSINTJOBS_NAME"
+    }
+  ]
+}

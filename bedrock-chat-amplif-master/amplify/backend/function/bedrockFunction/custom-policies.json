@@ -1,0 +1,21 @@
+[
+  {
+    "Effect": "Allow",
+    "Action": [
+      "bedrock:InvokeModel"
+    ],
+    "Resource": [
+      "arn:aws:bedrock:eu-central-1::foundation-model/*"
+    ]
+  },
+  {
+    "Effect": "Allow",
+    "Action": [
+      "aws-marketplace:ViewSubscriptions",
+      "aws-marketplace:Subscribe"
+    ],
+    "Resource": [
+      "*"
+    ]
+  }
+]
