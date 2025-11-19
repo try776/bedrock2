@@ -5,7 +5,7 @@ import App from './App';
 
 // Importiere Amplify v5 und die Konfigurationsdatei
 import { Amplify } from 'aws-amplify';
-import awsExports from './aws-exports'; // Diese Datei wird von Amplify erstellt
+import awsExports from './aws-exports'; 
 
 // Konfiguriere Amplify
 Amplify.configure(awsExports);

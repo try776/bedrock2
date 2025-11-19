@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { post, get } from '@aws-amplify/api'; 
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // Für Tabellen Support (optional, sonst weglassen)
 import imageCompression from 'browser-image-compression';
 import './App.css';
 
@@ -29,12 +30,14 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [loadingText, setLoadingText] = useState('System bereit');
+  const [loadingText, setLoadingText] = useState('Bereit');
   
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
   
   const isOsintMode = selectedTask === 'Full OSINT Report';
 
+  // Auto-Scroll zum Ende
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -43,17 +46,50 @@ function App() {
     scrollToBottom();
   }, [messages, loadingText]);
 
+  // Auto-Resize für Textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'inherit'; // Reset
+      const scrollHeight = textareaRef.current.scrollHeight;
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 150)}px`;
+    }
+  }, [prompt]);
+
   const clearImageData = () => {
     if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     setImageFile(null);
     setImagePreviewUrl(null);
   };
 
+  const handleClearChat = () => {
+    if (window.confirm("Möchten Sie den Chat wirklich leeren?")) {
+      setMessages([]);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      // Optional: Kleines Feedback (Toast) könnte hier hin
+    });
+  };
+
+  // Markdown Konfiguration
   const markdownComponents = useMemo(() => ({
     a: ({node, ...props}) => (
         // eslint-disable-next-line jsx-a11y/anchor-has-content
         <a {...props} target="_blank" rel="noopener noreferrer">{props.children}</a>
-    )
+    ),
+    table: ({node, ...props}) => (
+        <div className="table-wrapper"><table {...props}>{props.children}</table></div>
+    ),
+    code: ({node, inline, className, children, ...props}) => {
+        return inline ? 
+          <code className="inline-code" {...props}>{children}</code> :
+          <div className="code-block-wrapper">
+             <pre className="code-block" {...props}><code>{children}</code></pre>
+             <button className="copy-code-btn" onClick={() => copyToClipboard(String(children))}>Copy</button>
+          </div>
+    }
   }), []);
 
   // --- HAUPTLOGIK ---
@@ -76,11 +112,17 @@ function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setPrompt('');
+    
+    // Textarea Höhe zurücksetzen
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    
     clearImageData();
     setIsLoading(true);
 
     let imageBase64 = null;
     let imageMediaType = null;
+    
+    // Bild verarbeiten
     if (imageFile && !isOsintMode) {
       try {
         imageBase64 = await fileToBase64(imageFile);
@@ -113,22 +155,21 @@ function App() {
         const startResponse = await startRequest.response;
         const startData = await startResponse.body.json();
 
-        // 2. Verarbeitung
+        // 2. Verarbeitung (Polling)
         if (startData.jobId) {
                 const jobId = startData.jobId;
                 let jobStatus = "QUEUED"; 
                 let finalResult = "";
                 let attempts = 0;
+                const maxAttempts = 200; // ca. 10 Minuten Timeout
 
-                // WICHTIG: Wir warten solange, wie der Job NICHT fertig und NICHT fehlgeschlagen ist.
-                // Egal ob er "QUEUED", "FETCHING", "ANALYZING" oder "PROCESSING" ist.
-                while (jobStatus !== "COMPLETED" && jobStatus !== "FAILED" && attempts < 200) {
+                while (jobStatus !== "COMPLETED" && jobStatus !== "FAILED" && attempts < maxAttempts) {
                     attempts++;
                     
-                    // UX: Status im Ladebalken anzeigen
+                    // Dynamischer Statustext
                     if (jobStatus === "QUEUED") setLoadingText(`In Warteschlange (${attempts})...`);
-                    else if (jobStatus === "FETCHING") setLoadingText(`Lade Nachrichten (${attempts})...`);
-                    else if (jobStatus === "ANALYZING") setLoadingText(`KI analysiert (${attempts})...`);
+                    else if (jobStatus === "FETCHING") setLoadingText(`🔍 Sammle Daten (${attempts})...`);
+                    else if (jobStatus === "ANALYZING") setLoadingText(`🧠 KI Analysiert (${attempts})...`);
                     else setLoadingText(`Verarbeite (${attempts})...`);
 
                     await wait(3000); // 3s Warten
@@ -154,19 +195,20 @@ function App() {
                         }
                     
                     } catch (networkError) {
-                        console.warn("Polling error (ignoring):", networkError);
+                        console.warn("Polling error (ignoring temporary network glitch):", networkError);
+                        // Wir zählen weiter hoch, brechen aber nicht sofort ab
                         continue; 
                     }
                 }
                 
                 if (!finalResult && jobStatus !== "FAILED") {
-                     throw new Error(`Timeout nach ${attempts * 3} Sekunden. Letzter Status: ${jobStatus}`);
+                     throw new Error(`Zeitüberschreitung nach ${attempts * 3} Sekunden.`);
                 }
                 
                 setMessages((prev) => [...prev, { author: 'ai', type: 'text', content: finalResult }]);
 
         } else if (startData.response) {
-            // --- SYNC MODUS ---
+            // --- SYNC MODUS (Direkte Antwort) ---
             setMessages((prev) => [...prev, { author: 'ai', type: 'text', content: startData.response }]);
         } else {
             throw new Error("Ungültige Serverantwort.");
@@ -175,15 +217,7 @@ function App() {
     } catch (error) {
         console.error('App Error:', error);
         let errMsg = "Verbindungsfehler zum Server.";
-        
         if (error.message) errMsg = error.message;
-        try {
-            if (error.response) {
-               const errBody = await error.response.body.json();
-               if (errBody.error) errMsg = errBody.error;
-            }
-        } catch (e) { }
-
         setMessages((prev) => [...prev, { author: 'ai', type: 'error', content: `❌ ${errMsg}` }]);
     } finally {
         setIsLoading(false);
@@ -191,7 +225,7 @@ function App() {
     }
   };
 
-  // --- HELPER ---
+  // --- HANDLERS ---
   const handleImageChange = async (e) => {
     if (imagePreviewUrl) clearImageData();
     const file = e.target.files && e.target.files[0];
@@ -212,11 +246,18 @@ function App() {
 
   const handleShortcutSubmit = (action) => {
     if (action === "72h") {
-        if (!prompt) { alert("Bitte Land oder Region eingeben."); return; }
+        if (!prompt) { alert("Bitte geben Sie zuerst ein Land oder eine Region in das Textfeld ein."); return; }
         handleSubmit(null, `MODE_72H:${prompt}`);
     } else {
         setPrompt(action);
         handleSubmit(null, action);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
     }
   };
 
@@ -229,18 +270,23 @@ function App() {
               <span className="brand-name">Intelligence Suite</span>
             </div>
             
-            <div className="mode-selector">
-              <select 
-                id="task-select" 
-                value={selectedTask} 
-                onChange={(e) => { setSelectedTask(e.target.value); if (e.target.value !== 'Standard-Chat') clearImageData(); }} 
-                disabled={isLoading}
-              >
-                {osintTasks.map((task) => <option key={task.value} value={task.value}>{task.name}</option>)}
-              </select>
-              <span className={`mode-badge ${isOsintMode ? 'badge-osint' : 'badge-vision'}`}>
-                {isOsintMode ? "PRO OSINT" : "AI ASSISTANT"}
-              </span>
+            <div className="nav-controls">
+                <div className="mode-selector">
+                  <select 
+                    id="task-select" 
+                    value={selectedTask} 
+                    onChange={(e) => { setSelectedTask(e.target.value); if (e.target.value !== 'Standard-Chat') clearImageData(); }} 
+                    disabled={isLoading}
+                  >
+                    {osintTasks.map((task) => <option key={task.value} value={task.value}>{task.name}</option>)}
+                  </select>
+                  <span className={`mode-badge ${isOsintMode ? 'badge-osint' : 'badge-vision'}`}>
+                    {isOsintMode ? "PRO OSINT" : "AI ASSISTANT"}
+                  </span>
+                </div>
+                {messages.length > 0 && (
+                    <button className="clear-btn" onClick={handleClearChat} title="Chat leeren">🗑️</button>
+                )}
             </div>
         </div>
       </nav>
@@ -250,8 +296,8 @@ function App() {
             {messages.length === 0 ? (
               <div className="empty-state">
                  <div className="empty-icon">{isOsintMode ? "🌍" : "👋"}</div>
-                 <h3>{isOsintMode ? "Regionale Lageanalyse" : "Wie kann ich helfen?"}</h3>
-                 <p>{isOsintMode ? "Geben Sie ein Land oder eine Region ein, um den Bericht zu starten." : "Laden Sie ein Bild hoch oder stellen Sie eine Frage."}</p>
+                 <h3>{isOsintMode ? "Lagezentrum" : "Wie kann ich helfen?"}</h3>
+                 <p>{isOsintMode ? "Geben Sie ein Land oder eine Region ein, um einen Echtzeit-Bericht zu erstellen." : "Laden Sie ein Bild hoch oder stellen Sie eine Frage."}</p>
               </div>
             ) : (
               messages.map((msg, index) => (
@@ -260,13 +306,19 @@ function App() {
                     {msg.image && <img src={msg.image} alt="Upload" className="uploaded-image" />}
                     {msg.content && (
                       <div className="markdown-content">
+                        {/* Bemerkung: remarkPlugins={[remarkGfm]} hinzufügen wenn installiert */}
                         <ReactMarkdown components={markdownComponents}>
                           {msg.content}
                         </ReactMarkdown>
                       </div>
                     )}
+                    {msg.author === 'ai' && msg.type !== 'error' && (
+                        <div className="msg-actions">
+                            <button onClick={() => copyToClipboard(msg.content)} className="action-btn" title="Kopieren">📋</button>
+                        </div>
+                    )}
                   </div>
-                  <span className="message-role">{msg.author === 'user' ? 'Sie' : 'AI Assistant'}</span>
+                  <span className="message-role">{msg.author === 'user' ? 'Sie' : 'AI Analyst'}</span>
                 </div>
               ))
             )}
@@ -276,7 +328,7 @@ function App() {
                         <div className="typing-dot"></div>
                         <div className="typing-dot"></div>
                         <div className="typing-dot"></div>
-                        <span style={{marginLeft: '10px', fontSize: '12px', color: '#666'}}>{loadingText}</span>
+                        <span className="loading-text">{loadingText}</span>
                     </div>
                 </div>
             )}
@@ -322,12 +374,14 @@ function App() {
                 </div>
               )}
               
-              <input 
-                type="text" 
+              <textarea
+                ref={textareaRef}
                 value={prompt} 
-                onChange={(e) => setPrompt(e.target.value)} 
-                placeholder={isOsintMode ? "Land oder Region eingeben..." : "Schreiben Sie eine Nachricht..."} 
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={isOsintMode ? "Z.B. 'Lage in Berlin' oder 'Erdbeben Japan'" : "Nachricht eingeben... (Shift+Enter für neue Zeile)"} 
                 disabled={isLoading} 
+                rows={1}
               />
               
               <button type="submit" className="send-button" disabled={isLoading || (!prompt && !imageFile && !isOsintMode) || (isOsintMode && !prompt)}>
