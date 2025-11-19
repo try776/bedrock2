@@ -6,14 +6,14 @@ const awsmobile = {
     "aws_cloud_logic_custom": [
         {
             "name": "bedrockAPI",
-            "endpoint": "https://yurc2juo1e.execute-api.eu-central-1.amazonaws.com/dev",
+            "endpoint": "https://omf6o7o239.execute-api.eu-central-1.amazonaws.com/prod",
             "region": "eu-central-1"
         }
     ],
-    "aws_cognito_identity_pool_id": "eu-central-1:5ed587c0-7ae0-47c4-a675-2105841dd0a2",
+    "aws_cognito_identity_pool_id": "eu-central-1:e6115ed7-9b35-47b0-8192-fb1f10e99b40",
     "aws_cognito_region": "eu-central-1",
-    "aws_user_pools_id": "eu-central-1_B38m99SEK",
-    "aws_user_pools_web_client_id": "1n172goc0qc3a3gc6johhtkfio",
+    "aws_user_pools_id": "eu-central-1_PUnNgPiy3",
+    "aws_user_pools_web_client_id": "4c2c0vbgr1bdscsg16q6t1gdrc",
     "oauth": {},
     "aws_cognito_username_attributes": [],
     "aws_cognito_social_providers": [],
