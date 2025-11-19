@@ -15,9 +15,8 @@ const ENV = process.env.ENV;
 const REGION = 'eu-central-1'; 
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
 
-// NEUESTES MODELL (V2 - Oktober 2024)
-// Falls das in Frankfurt noch nicht geht, nutze: "anthropic.claude-3-sonnet-20240229-v1:0"
-const MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0";
+// Wir nutzen die stabile Version für Frankfurt (Claude 3 Sonnet)
+const MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0";
 
 const WORKER_FUNCTION_NAME = `osintWorker-${ENV}`; 
 

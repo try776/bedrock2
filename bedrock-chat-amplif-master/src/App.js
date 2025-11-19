@@ -115,52 +115,55 @@ function App() {
 
         // 2. Verarbeitung
         if (startData.jobId) {
-            // --- ASYNC MODUS ---
-            const jobId = startData.jobId;
-            let jobStatus = "QUEUED"; // Start-Status anpassen
-            let finalResult = "";
-            let attempts = 0;
+                const jobId = startData.jobId;
+                let jobStatus = "QUEUED"; 
+                let finalResult = "";
+                let attempts = 0;
 
-            // HIER WAR DER FEHLER: Wir müssen auch bei "QUEUED" warten!
-            while ((jobStatus === "PROCESSING" || jobStatus === "QUEUED") && attempts < 120) {
-                attempts++;
-                
-                // Status Text Updates für besseres UX
-                if(jobStatus === "QUEUED") setLoadingText(`In Warteschlange (${attempts})...`);
-                else if(attempts > 2) setLoadingText(`Analysiere Quellen (${attempts})...`);
-
-                await wait(3000); // 3s Warten
-
-                try {
-                    const checkRequest = get({
-                        apiName: apiName,
-                        path: '/chat',
-                        options: { queryParams: { jobId: jobId } }
-                    });
-                    const checkResponse = await checkRequest.response;
-                    const checkData = await checkResponse.body.json();
+                // WICHTIG: Wir warten solange, wie der Job NICHT fertig und NICHT fehlgeschlagen ist.
+                // Egal ob er "QUEUED", "FETCHING", "ANALYZING" oder "PROCESSING" ist.
+                while (jobStatus !== "COMPLETED" && jobStatus !== "FAILED" && attempts < 200) {
+                    attempts++;
                     
-                    jobStatus = checkData.status;
+                    // UX: Status im Ladebalken anzeigen
+                    if (jobStatus === "QUEUED") setLoadingText(`In Warteschlange (${attempts})...`);
+                    else if (jobStatus === "FETCHING") setLoadingText(`Lade Nachrichten (${attempts})...`);
+                    else if (jobStatus === "ANALYZING") setLoadingText(`KI analysiert (${attempts})...`);
+                    else setLoadingText(`Verarbeite (${attempts})...`);
+
+                    await wait(3000); // 3s Warten
+
+                    try {
+                        const checkRequest = get({
+                            apiName: apiName,
+                            path: '/chat',
+                            options: { queryParams: { jobId: jobId } }
+                        });
+                        const checkResponse = await checkRequest.response;
+                        const checkData = await checkResponse.body.json();
+                        
+                        jobStatus = checkData.status;
+                        
+                        if (jobStatus === "COMPLETED") {
+                            finalResult = checkData.result;
+                            break; 
+                        }
+                        
+                        if (jobStatus === "FAILED") {
+                            throw new Error(checkData.result || checkData.message || "Analyse fehlgeschlagen");
+                        }
                     
-                    if (jobStatus === "COMPLETED") {
-                        finalResult = checkData.result;
-                        break; // Schleife verlassen wenn fertig
+                    } catch (networkError) {
+                        console.warn("Polling error (ignoring):", networkError);
+                        continue; 
                     }
-                    
-                    if (jobStatus === "FAILED") {
-                        throw new Error(checkData.result || "Analyse fehlgeschlagen");
-                    }
-                
-                } catch (networkError) {
-                    console.warn("Polling transient error:", networkError);
-                    // Wir brechen hier nicht ab, sondern versuchen es weiter (Polling Logik)
-                    continue; 
                 }
-            }
-            
-            if (!finalResult && jobStatus !== "FAILED") throw new Error("Timeout: Keine Antwort innerhalb des Zeitlimits.");
-            
-            setMessages((prev) => [...prev, { author: 'ai', type: 'text', content: finalResult }]);
+                
+                if (!finalResult && jobStatus !== "FAILED") {
+                     throw new Error(`Timeout nach ${attempts * 3} Sekunden. Letzter Status: ${jobStatus}`);
+                }
+                
+                setMessages((prev) => [...prev, { author: 'ai', type: 'text', content: finalResult }]);
 
         } else if (startData.response) {
             // --- SYNC MODUS ---

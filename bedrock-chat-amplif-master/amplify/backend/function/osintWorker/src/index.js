@@ -20,8 +20,8 @@ const TIMEOUT_MS = 6000;
 const bedrockClient = new BedrockRuntimeClient({ region: REGION }); 
 const ddbClient = new DynamoDBClient({ region: REGION });
 
-// MODEL ID: Claude 3 Sonnet (Funktioniert in Frankfurt)
-const MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0'; 
+// Wir nutzen die stabile Version für Frankfurt (Claude 3 Sonnet)
+const MODEL_ID = "anthropic.claude-3-sonnet-20240229-v1:0";
 
 // HILFSFUNKTION: Status Update
 async function updateJobStatus(jobId, status, message = "") {
