@@ -391,7 +391,7 @@ function App() {
                         value={prompt} 
                         onChange={(e) => setPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={isOsintMode ? "Z.B. 'Lage in Berlin' oder 'Erdbeben Japan'" : "Nachricht eingeben... (Shift+Enter für neue Zeile)"} 
+                        placeholder={isOsintMode ? "Z.B. 'Berlin' oder 'Japan' oder 'Europa'" : "Nachricht eingeben... (Shift+Enter für neue Zeile)"} 
                         disabled={isLoading} 
                         rows={1}
                       />
