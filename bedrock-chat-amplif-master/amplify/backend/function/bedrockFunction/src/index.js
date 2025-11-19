@@ -12,21 +12,20 @@ import { v4 as uuidv4 } from 'uuid';
 
 // --- KONFIGURATION ---
 const ENV = process.env.ENV;
-const REGION = process.env.REGION || 'eu-central-1'; // Deine Deployment Region
+// WICHTIG: Alles läuft jetzt in Frankfurt
+const REGION = 'eu-central-1'; 
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
 
-// WICHTIG: Automatische Anpassung an die Umgebung (dev/prod)
-// Verhindert, dass 'prod' versucht, 'dev' aufzurufen.
+// Automatische Anpassung an die Umgebung (dev/prod)
 const WORKER_FUNCTION_NAME = `osintWorker-${ENV}`; 
 
 // --- CLIENTS ---
-// Bedrock muss oft in us-east-1 genutzt werden, wenn Models in eu-central-1 nicht verfügbar sind
-const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' }); 
+// Bedrock Client jetzt explizit in Frankfurt
+const bedrockClient = new BedrockRuntimeClient({ region: REGION }); 
 const lambdaClient = new LambdaClient({ region: REGION });
 const ddbClient = new DynamoDBClient({ region: REGION });
 
 export const handler = async (event) => {
-    // CORS Header sind essenziell für den Zugriff vom Browser
     const headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "*",
@@ -34,9 +33,7 @@ export const handler = async (event) => {
     };
 
     try {
-        // ---------------------------------------------------------
-        // TEIL 1: STATUS ABFRAGE (GET)
-        // ---------------------------------------------------------
+        // --- TEIL 1: STATUS ABFRAGE (GET) ---
         if (event.httpMethod === 'GET' && event.queryStringParameters?.jobId) {
             const jobId = event.queryStringParameters.jobId;
             
@@ -49,7 +46,7 @@ export const handler = async (event) => {
                 return {
                     statusCode: 404,
                     headers,
-                    body: JSON.stringify({ status: "NOT_FOUND", message: "Job nicht gefunden oder noch nicht initialisiert." })
+                    body: JSON.stringify({ status: "NOT_FOUND", message: "Job nicht gefunden." })
                 };
             }
 
@@ -65,9 +62,7 @@ export const handler = async (event) => {
             };
         }
 
-        // ---------------------------------------------------------
-        // TEIL 2: NEUER REQUEST (POST)
-        // ---------------------------------------------------------
+        // --- TEIL 2: NEUER REQUEST (POST) ---
         let body = {};
         if (event.body) {
             body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
@@ -80,37 +75,34 @@ export const handler = async (event) => {
             const jobId = uuidv4();
             const timestamp = new Date().toISOString();
 
-            console.log(`Starte OSINT Job: ${jobId} für Umgebung: ${ENV} -> Worker: ${WORKER_FUNCTION_NAME}`);
+            console.log(`Starte OSINT Job: ${jobId} in ${REGION}`);
 
-            // 1. Eintrag in DB erstellen (Initialer Status)
+            // 1. Eintrag in DB
             await ddbClient.send(new PutItemCommand({
                 TableName: TABLE_NAME,
                 Item: {
                     id: { S: jobId },
                     status: { S: "QUEUED" },
-                    message: { S: "Job wird an Worker übergeben..." },
+                    message: { S: "Job wird initialisiert..." },
                     createdAt: { S: timestamp },
                     prompt: { S: prompt }
                 }
             }));
 
-            // 2. Worker asynchron starten (Invoke)
-            const workerPayload = { jobId, prompt };
-            
+            // 2. Worker starten
             await lambdaClient.send(new InvokeCommand({
                 FunctionName: WORKER_FUNCTION_NAME, 
-                InvocationType: 'Event', // 'Event' bedeutet: Nicht auf Antwort warten (Asynchron)
-                Payload: JSON.stringify(workerPayload)
+                InvocationType: 'Event', 
+                Payload: JSON.stringify({ jobId, prompt })
             }));
 
-            // 3. Sofort dem Frontend antworten, dass der Job läuft
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({ 
                     jobId: jobId, 
                     status: "QUEUED",
-                    message: "OSINT Analyse gestartet. Bitte warten..." 
+                    message: "OSINT Analyse in Frankfurt gestartet." 
                 })
             };
         }
@@ -131,7 +123,8 @@ export const handler = async (event) => {
             }
 
             const command = new InvokeModelCommand({
-                modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+                // NEUESTES MODELL: Claude 3.5 Sonnet
+                modelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
                 contentType: "application/json",
                 accept: "application/json",
                 body: JSON.stringify({
@@ -152,11 +145,11 @@ export const handler = async (event) => {
         }
 
     } catch (error) {
-        console.error("CRITICAL ERROR in BedrockFunction:", error);
+        console.error("ERROR in BedrockFunction:", error);
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: error.message, hint: "Check CloudWatch logs for details." })
+            body: JSON.stringify({ error: error.message })
         };
     }
 };
