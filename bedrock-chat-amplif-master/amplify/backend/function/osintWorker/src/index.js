@@ -32,7 +32,7 @@ const ddbClient = new DynamoDBClient({ region: REGION });
 
 // MODEL: Amazon Nova Pro (Cross-Region Inference Profile ID für EU)
 // Stelle sicher, dass du Zugriff auf "eu.amazon.nova-pro-v1:0" hast
-const MODEL_ID = "eu.amazon.nova-pro-v1:0";
+const MODEL_ID = "mistral.pixtral-large-2502-v1:0";
 
 // --- HILFSFUNKTIONEN ---
 
