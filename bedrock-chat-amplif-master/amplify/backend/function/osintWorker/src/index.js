@@ -12,7 +12,6 @@ import * as cheerio from 'cheerio';
 
 // --- KONFIGURATION ---
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
-// Erzwinge eu-central-1 oder nutze Environment
 const REGION = process.env.REGION || "eu-central-1"; 
 const MAX_SOURCES_PER_VECTOR = 20; 
 const TIMEOUT_MS = 25000; 
@@ -53,25 +52,44 @@ async function updateJobStatus(jobId, status, message = "") {
     } catch (e) { console.error("DB Update Failed:", e); }
 }
 
-// Erweiterter Link Resolver
+// Erweiterter Link Resolver (MIT VERBESSERTEM FALLBACK FÜR GOOGLE NEWS)
 async function resolveRealUrl(url) {
+    // 1. URLs, die keine Google/Search-Links sind, sofort zurückgeben
     if (!url.includes('google.com') && !url.includes('r.search.yahoo') && !url.includes('duckduckgo')) return url;
+
+    // 2. Head Request versuchen (löst Redirects bis zu 3x auf)
     try {
         const response = await axios.head(url, {
-            maxRedirects: 3,
-            timeout: 3000,
+            maxRedirects: 5, // Erhöhe auf 5 für mehr Robustheit
+            timeout: 4000,   // Erhöhe Timeout leicht
             validateStatus: (status) => status >= 200 && status < 400
         });
+        // Die finale URL nach allen Redirects
         return response.request.res.responseUrl || url;
     } catch (e) {
+        // console.warn(`Head request failed for ${url}. Trying URL decoding fallback.`);
+
+        // 3. Fallback 1: Deep Decoding für Base64-codierte Google News Links (articles/)
         if (url.includes('articles/')) {
             try {
+                // Versuche, die Base64-Part zu extrahieren
                 const base64Part = url.split('articles/')[1].split('?')[0];
                 const decoded = Buffer.from(base64Part, 'base64').toString('latin1');
                 const match = decoded.match(/(https?:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+)/);
-                return match ? match[0] : url;
-            } catch { return url; }
+                return match ? match[0] : url; // Gib die erste gefundene HTTP(s) URL zurück
+            } catch (err) { /* ignore, try next fallback */ }
         }
+
+        // 4. Fallback 2: Versuche, die URL zu decodieren, falls sie URL-codiert ist
+        try {
+            const decodedUrl = decodeURIComponent(url);
+            // Wenn die Decodierung funktioniert und eine nicht-Google-URL ergibt, diese zurückgeben
+            if (decodedUrl.startsWith('http') && !decodedUrl.includes('google.com')) {
+                return decodedUrl;
+            }
+        } catch (err) { /* ignore */ }
+
+        // 5. Wenn alles fehlschlägt, die Original-URL zurückgeben (sie ist möglicherweise nicht auflösbar)
         return url;
     }
 }
@@ -90,7 +108,7 @@ function calculateIntelScore(item) {
     return score;
 }
 
-// Fetcher DuckDuckGo
+// Fetcher DuckDuckGo (UNVERÄNDERT)
 async function fetchDuckDuckGo(query, label) {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&kl=de-de`;
     try {
@@ -123,7 +141,7 @@ async function fetchDuckDuckGo(query, label) {
     } catch (e) { return []; }
 }
 
-// Fetcher RSS
+// Fetcher RSS (UNVERÄNDERT)
 async function fetchRSS(url, label) {
     try {
         const response = await axios.get(url, {
@@ -189,21 +207,15 @@ export const handler = async (event) => {
         const results = await Promise.all(tasks);
         let allItems = results.flat();
 
-        // --- NEU: STRIKTER ZEITFILTER (Server-Side Enforcement) ---
+        // --- STRIKTES ZEITFILTER (Server-Side Enforcement) ---
         const NOW = Date.now();
-        // Definiere maximales Alter in Millisekunden
         const MAX_AGE_MS = is72h ? (72 * 60 * 60 * 1000) : (7 * 24 * 60 * 60 * 1000);
         
         const initialCount = allItems.length;
         
         allItems = allItems.filter(item => {
-            // Verwerfe Items ohne validen Timestamp
             if (!item.timestamp || isNaN(item.timestamp)) return false;
-            
-            // Berechne Alter
             const ageMs = NOW - item.timestamp;
-            
-            // Strict Filter
             return ageMs <= MAX_AGE_MS;
         });
 

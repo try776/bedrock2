@@ -12,12 +12,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 // --- KONFIGURATION ---
 const ENV = process.env.ENV;
-// REGION wird auf eu-central-1 (Frankfurt) festgelegt.
 const REGION = 'eu-central-1'; 
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
 
-// WICHTIG: Umstellung auf MISTRAL PIXTRAL (EU Cross-Region Inference Profile)
-const MODEL_ID = "eu.mistral.pixtral-large-2502-v1:0";
+// WICHTIG: Umstellung auf MISTRAL PIXTRAL (EU Inference Profile) für Vision und Chat
+const MODEL_ID = "eu.mistral.pixtral-large-2502-v1:0"; 
 
 const WORKER_FUNCTION_NAME = `osintWorker-${ENV}`; 
 
@@ -27,9 +26,6 @@ const lambdaClient = new LambdaClient({ region: REGION });
 const ddbClient = new DynamoDBClient({ region: REGION });
 
 export const handler = async (event) => {
-    // Wichtiger Log, um die korrekte Ausführung zu bestätigen
-    console.log("🚀 BEDROCK FUNCTION (MISTRAL PIXTRAL) STARTED"); 
-    
     const headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "*",
@@ -74,12 +70,12 @@ export const handler = async (event) => {
 
         const { prompt, mode, imageBase64, imageMediaType } = body;
 
-        // >>> FALL A: OSINT JOB <<<
+        // >>> FALL A: OSINT JOB (Asynchroner Aufruf des Workers) <<<
         if (mode === 'Full OSINT Report') {
             const jobId = uuidv4();
             const timestamp = new Date().toISOString();
 
-            console.log(`Starte OSINT Job: ${jobId} in ${REGION} mit Worker: ${WORKER_FUNCTION_NAME}`);
+            console.log(`Starte OSINT Job: ${jobId} in ${REGION}`);
 
             await ddbClient.send(new PutItemCommand({
                 TableName: TABLE_NAME,
@@ -92,7 +88,6 @@ export const handler = async (event) => {
                 }
             }));
 
-            // Asynchroner Aufruf des OSINT Workers
             await lambdaClient.send(new InvokeCommand({
                 FunctionName: WORKER_FUNCTION_NAME, 
                 InvocationType: 'Event', 
@@ -105,60 +100,59 @@ export const handler = async (event) => {
                 body: JSON.stringify({ 
                     jobId: jobId, 
                     status: "QUEUED",
-                    message: "OSINT Analyse (Mistral Pixtral) gestartet." 
+                    message: "OSINT Analyse (Mistral) gestartet." 
                 })
             };
         }
 
-        // >>> FALL B: STANDARD CHAT / VISION MIT MISTRAL <<<
+        // >>> FALL B: STANDARD CHAT / VISION (Synchroner Aufruf) <<<
         else {
-            let userMessageContent = [{ type: "text", text: prompt || "Hallo" }];
+            let userMessageContent = [];
+            
+            // 1. Text Prompt
+            userMessageContent.push({ type: "text", text: prompt || "Hallo" });
 
-            // Bilddaten für Mistral Pixtral vorbereiten
+            // 2. Bild (Falls vorhanden) - Konvertiert in Mistral VLM / Chat Format
             if (imageBase64) {
-                console.log("Verarbeite Bilddaten für Mistral Pixtral.");
+                // Mistral Pixtral unterstützt die native Chat-Completion-Struktur
                 userMessageContent.push({
                     type: "image_url",
                     image_url: {
-                        // Base64 muss in eine Data URL eingebettet werden
                         url: `data:${imageMediaType || 'image/jpeg'};base64,${imageBase64}`
                     }
                 });
             }
-
-            // MISTRAL PAYLOAD STRUKTUR
+            
             const mistralPayload = {
                 messages: [{ role: "user", content: userMessageContent }],
                 max_tokens: 2000,
-                temperature: 0.7 // Standardwert
+                temperature: 0.7
             };
 
             const command = new InvokeModelCommand({
                 modelId: MODEL_ID,
                 contentType: "application/json",
                 accept: "application/json",
-                body: JSON.stringify(mistralPayload)
+                body: JSON.stringify(mistralPayload) // NEUE MISTRAL PAYLOAD
             });
 
             const response = await bedrockClient.send(command);
             const jsonResponse = JSON.parse(new TextDecoder().decode(response.body));
             
-            // MISTRAL RESPONSE PARSING (choices[0].message.content)
-            const finalResponse = jsonResponse.choices?.[0]?.message?.content || "Fehler beim Parsen der Mistral-Antwort.";
-
+            // NEUES PARSING: Mistral Struktur: choices[0].message.content
             return {
                 statusCode: 200,
                 headers,
-                body: JSON.stringify({ response: finalResponse })
+                body: JSON.stringify({ response: jsonResponse.choices[0].message.content })
             };
         }
 
     } catch (error) {
-        console.error("❌ ERROR in BedrockFunction:", error);
+        console.error("ERROR in BedrockFunction:", error);
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: error.message })
+            body: JSON.stringify({ error: error.message, detail: "Bedrock/Model Invocation Error" })
         };
     }
 };

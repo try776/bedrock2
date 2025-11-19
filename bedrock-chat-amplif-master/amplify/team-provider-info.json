@@ -88,7 +88,7 @@
         },
         "osintWorker": {
           "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
-          "s3Key": "amplify-builds/osintWorker-76707a6f6a7631716e55-build.zip",
+          "s3Key": "amplify-builds/osintWorker-55784467787574347948-build.zip",
           "storageOsintjobsName": "OsintJobs"
         }
       },
