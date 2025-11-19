@@ -83,7 +83,7 @@
       "function": {
         "bedrockFunction": {
           "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
-          "s3Key": "amplify-builds/bedrockFunction-677049494d676b6b2b71-build.zip",
+          "s3Key": "amplify-builds/bedrockFunction-343678702f394358736f-build.zip",
           "storageOsintjobsName": "OsintJobs"
         },
         "osintWorker": {
