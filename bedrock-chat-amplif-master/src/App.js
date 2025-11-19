@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { post, get } from '@aws-amplify/api'; 
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm'; // Für Tabellen Support (optional, sonst weglassen)
 import imageCompression from 'browser-image-compression';
 import './App.css';
 
