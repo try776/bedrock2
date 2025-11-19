@@ -12,18 +12,16 @@ import * as cheerio from 'cheerio';
 
 // --- KONFIGURATION ---
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
-// WICHTIG: Frankfurt erzwingen
 const REGION = "eu-central-1"; 
 const MAX_SOURCES_PER_CATEGORY = 10; 
 const TIMEOUT_MS = 6000;
 
 // --- CLIENTS ---
-// Bedrock Client jetzt in Frankfurt
 const bedrockClient = new BedrockRuntimeClient({ region: REGION }); 
 const ddbClient = new DynamoDBClient({ region: REGION });
 
-// NEUESTES MODELL: Claude 3.5 Sonnet
-const MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'; 
+// MODEL ID: Claude 3 Sonnet (Funktioniert in Frankfurt)
+const MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0'; 
 
 // HILFSFUNKTION: Status Update
 async function updateJobStatus(jobId, status, message = "") {
@@ -43,7 +41,7 @@ async function updateJobStatus(jobId, status, message = "") {
     } catch (e) { console.error("DB Update Failed:", e); }
 }
 
-// Such-Vektoren (Gleichbleibend)
+// Such-Vektoren
 const generateSearchVectors = (topic, timeParam) => {
     const baseUrl = "https://news.google.com/rss/search?hl=de&gl=CH&ceid=CH:de&scoring=n";
     const encodedTopic = encodeURIComponent(topic);
@@ -62,7 +60,7 @@ const generateSearchVectors = (topic, timeParam) => {
     }));
 };
 
-// Fetcher (Gleichbleibend)
+// Fetcher
 async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
     try {
         const response = await axios.get(url, {
@@ -97,7 +95,7 @@ async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
 }
 
 export const handler = async (event) => {
-    console.log("🚀 OSINT WORKER (Frankfurt) STARTED");
+    console.log("🚀 OSINT WORKER (Frankfurt - Claude 3) STARTED");
     let payload = event.body && typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || event);
     const { jobId, prompt } = payload; 
     if (!jobId) return;
@@ -110,7 +108,7 @@ export const handler = async (event) => {
         const timeLabel = is72h ? "Letzte 72 Stunden" : "Letzte 7 Tage";
         let limitDate = is72h ? new Date(Date.now() - (72 * 60 * 60 * 1000)) : null;
 
-        await updateJobStatus(jobId, "FETCHING", `Scanne Nachrichten (Frankfurt Node) zu: '${searchTopic}'...`);
+        await updateJobStatus(jobId, "FETCHING", `Scanne Nachrichten zu: '${searchTopic}'...`);
 
         const searchVectors = generateSearchVectors(searchTopic, timeParam);
         const results = await Promise.all(searchVectors.map(vec => fetchFeedData(vec.url, vec.label, limitDate)));
@@ -124,7 +122,7 @@ export const handler = async (event) => {
 
         if (uniqueItems.length === 0) throw new Error("Keine Nachrichten gefunden.");
 
-        await updateJobStatus(jobId, "ANALYZING", `${uniqueItems.length} Artikel. KI-Analyse (Claude 3.5) läuft...`);
+        await updateJobStatus(jobId, "ANALYZING", `${uniqueItems.length} Artikel. KI-Analyse (Claude 3) läuft...`);
 
         const intelContext = JSON.stringify(uniqueItems.slice(0, 45)); 
         const systemPrompt = `DU BIST: Elite Intelligence Analyst. THEMA: "${searchTopic}". 

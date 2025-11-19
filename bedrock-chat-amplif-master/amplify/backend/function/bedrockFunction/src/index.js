@@ -12,15 +12,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 // --- KONFIGURATION ---
 const ENV = process.env.ENV;
-// WICHTIG: Alles läuft jetzt in Frankfurt
 const REGION = 'eu-central-1'; 
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
 
-// Automatische Anpassung an die Umgebung (dev/prod)
+// NEUESTES MODELL (V2 - Oktober 2024)
+// Falls das in Frankfurt noch nicht geht, nutze: "anthropic.claude-3-sonnet-20240229-v1:0"
+const MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0";
+
 const WORKER_FUNCTION_NAME = `osintWorker-${ENV}`; 
 
 // --- CLIENTS ---
-// Bedrock Client jetzt explizit in Frankfurt
 const bedrockClient = new BedrockRuntimeClient({ region: REGION }); 
 const lambdaClient = new LambdaClient({ region: REGION });
 const ddbClient = new DynamoDBClient({ region: REGION });
@@ -33,7 +34,7 @@ export const handler = async (event) => {
     };
 
     try {
-        // --- TEIL 1: STATUS ABFRAGE (GET) ---
+        // --- STATUS ABFRAGE (GET) ---
         if (event.httpMethod === 'GET' && event.queryStringParameters?.jobId) {
             const jobId = event.queryStringParameters.jobId;
             
@@ -62,7 +63,7 @@ export const handler = async (event) => {
             };
         }
 
-        // --- TEIL 2: NEUER REQUEST (POST) ---
+        // --- NEUER REQUEST (POST) ---
         let body = {};
         if (event.body) {
             body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
@@ -70,14 +71,13 @@ export const handler = async (event) => {
 
         const { prompt, mode, imageBase64, imageMediaType } = body;
 
-        // >>> FALL A: OSINT JOB (Langläufer) <<<
+        // >>> FALL A: OSINT JOB <<<
         if (mode === 'Full OSINT Report') {
             const jobId = uuidv4();
             const timestamp = new Date().toISOString();
 
             console.log(`Starte OSINT Job: ${jobId} in ${REGION}`);
 
-            // 1. Eintrag in DB
             await ddbClient.send(new PutItemCommand({
                 TableName: TABLE_NAME,
                 Item: {
@@ -89,7 +89,6 @@ export const handler = async (event) => {
                 }
             }));
 
-            // 2. Worker starten
             await lambdaClient.send(new InvokeCommand({
                 FunctionName: WORKER_FUNCTION_NAME, 
                 InvocationType: 'Event', 
@@ -102,12 +101,12 @@ export const handler = async (event) => {
                 body: JSON.stringify({ 
                     jobId: jobId, 
                     status: "QUEUED",
-                    message: "OSINT Analyse in Frankfurt gestartet." 
+                    message: "OSINT Analyse (V2) gestartet." 
                 })
             };
         }
 
-        // >>> FALL B: STANDARD CHAT / VISION (Synchron) <<<
+        // >>> FALL B: STANDARD CHAT / VISION <<<
         else {
             let userMessageContent = [{ type: "text", text: prompt || "Hallo" }];
 
@@ -123,8 +122,7 @@ export const handler = async (event) => {
             }
 
             const command = new InvokeModelCommand({
-                // NEUESTES MODELL: Claude 3.5 Sonnet
-                modelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+                modelId: MODEL_ID,
                 contentType: "application/json",
                 accept: "application/json",
                 body: JSON.stringify({

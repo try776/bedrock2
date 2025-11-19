@@ -83,12 +83,12 @@
       "function": {
         "bedrockFunction": {
           "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
-          "s3Key": "amplify-builds/bedrockFunction-4c5350746c4654627673-build.zip",
+          "s3Key": "amplify-builds/bedrockFunction-63756651323948324a43-build.zip",
           "storageOsintjobsName": "OsintJobs"
         },
         "osintWorker": {
           "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
-          "s3Key": "amplify-builds/osintWorker-4e2f516c4f5741765956-build.zip",
+          "s3Key": "amplify-builds/osintWorker-354354514b704e354b36-build.zip",
           "storageOsintjobsName": "OsintJobs"
         }
       },
