@@ -6,9 +6,10 @@ import './App.css';
 
 const apiName = 'bedrockAPI'; 
 
+// ÄNDERUNG 1: Reihenfolge getauscht, damit OSINT der Default (Index 0) ist
 const osintTasks = [
-  { name: 'Standard Chat & Vision', value: 'Standard-Chat' },
   { name: 'Deep OSINT Report', value: 'Full OSINT Report' },
+  { name: 'Standard Chat & Vision', value: 'Standard-Chat' },
 ];
 
 // Hilfsfunktion für Pausen
@@ -101,14 +102,25 @@ function App() {
     if (!isOsintMode && !currentPromptText && !imageFile) return;
 
     const effectivePrompt = currentPromptText || (imageFile ? "BILDANALYSE STARTEN" : "");
+    
+    // ÄNDERUNG 2: Erkennung beider Modi für die Anzeige
     const is72hMode = effectivePrompt.startsWith("MODE_72H:");
+    const is7dMode = effectivePrompt.startsWith("MODE_7D:");
+
+    let displayContent = effectivePrompt;
+    if (is72hMode) {
+        displayContent = `⚡ Quick Scan (72h): ${effectivePrompt.replace("MODE_72H:", "")}`;
+    } else if (is7dMode) {
+        displayContent = `📅 Deep Scan (7 Tage): ${effectivePrompt.replace("MODE_7D:", "")}`;
+    }
 
     const userMessage = {
       author: 'user',
       type: 'text',
-      content: is72hMode ? `Quick Scan: ${effectivePrompt.replace("MODE_72H:", "")}` : effectivePrompt,
+      content: displayContent,
       image: imagePreviewUrl,
     };
+
     setMessages((prev) => [...prev, userMessage]);
     setPrompt('');
     
@@ -121,7 +133,7 @@ function App() {
     let imageBase64 = null;
     let imageMediaType = null;
     
-    // Bild verarbeiten
+    // Bild verarbeiten (nur im Chat Modus erlaubt)
     if (imageFile && !isOsintMode) {
       try {
         imageBase64 = await fileToBase64(imageFile);
@@ -195,7 +207,6 @@ function App() {
                     
                     } catch (networkError) {
                         console.warn("Polling error (ignoring temporary network glitch):", networkError);
-                        // Wir zählen weiter hoch, brechen aber nicht sofort ab
                         continue; 
                     }
                 }
@@ -243,11 +254,18 @@ function App() {
     e.target.value = null;
   };
 
+  // ÄNDERUNG 3: Neue Logic für die Shortcuts (72h und 7d)
   const handleShortcutSubmit = (action) => {
-    if (action === "72h") {
-        if (!prompt) { alert("Bitte geben Sie zuerst ein Land oder eine Region in das Textfeld ein."); return; }
-        handleSubmit(null, `MODE_72H:${prompt}`);
+    // Logik für OSINT Modi, die eine Eingabe im Textfeld benötigen
+    if (action === "72h" || action === "7d") {
+        if (!prompt) { 
+            alert("Bitte geben Sie zuerst ein Land oder eine Region in das Textfeld ein."); 
+            return; 
+        }
+        const prefix = action === "72h" ? "MODE_72H" : "MODE_7D";
+        handleSubmit(null, `${prefix}:${prompt}`);
     } else {
+        // Logik für Standard Chat Shortcuts (Setzen Prompt und senden sofort)
         setPrompt(action);
         handleSubmit(null, action);
     }
@@ -305,7 +323,6 @@ function App() {
                     {msg.image && <img src={msg.image} alt="Upload" className="uploaded-image" />}
                     {msg.content && (
                       <div className="markdown-content">
-                        {/* Bemerkung: remarkPlugins={[remarkGfm]} hinzufügen wenn installiert */}
                         <ReactMarkdown components={markdownComponents}>
                           {msg.content}
                         </ReactMarkdown>
@@ -340,8 +357,12 @@ function App() {
             
             {!isLoading && (
                 <div className="shortcut-bar">
+                    {/* ÄNDERUNG 4: Neue Buttons für OSINT Modus */}
                     {isOsintMode ? (
-                        <button type="button" className="chip-button primary" onClick={() => handleShortcutSubmit("72h")}>⚡ Last 72H Quick-Scan </button>
+                        <>
+                            <button type="button" className="chip-button primary" onClick={() => handleShortcutSubmit("72h")}>⚡ 72h Quick-Scan</button>
+                            <button type="button" className="chip-button primary" onClick={() => handleShortcutSubmit("7d")}>📅 7 Tage Deep-Scan</button>
+                        </>
                     ) : (
                         imageFile && (
                             <>
