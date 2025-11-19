@@ -32,7 +32,6 @@ const bedrockClient = new BedrockRuntimeClient({ region: REGION });
 const ddbClient = new DynamoDBClient({ region: REGION });
 
 // MODEL: MISTRAL PIXTRAL (EU INFERENCE PROFILE)
-// WICHTIG: Nutzt das EU-Profil, um Throughput-Fehler in Frankfurt zu vermeiden.
 const MODEL_ID = "eu.mistral.pixtral-large-2502-v1:0";
 
 // --- HILFSFUNKTIONEN ---
@@ -158,7 +157,7 @@ async function fetchRSS(url, label) {
 }
 
 export const handler = async (event) => {
-    console.log("🚀 OSINT WORKER v6 (MISTRAL PIXTRAL EDITION) STARTED");
+    console.log("🚀 OSINT WORKER v6 (MISTRAL PIXTRAL + STRICT TIME) STARTED");
     
     let payload = event.body && typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || event);
     const { jobId, prompt } = payload; 
@@ -190,6 +189,27 @@ export const handler = async (event) => {
         const results = await Promise.all(tasks);
         let allItems = results.flat();
 
+        // --- NEU: STRIKTER ZEITFILTER (Server-Side Enforcement) ---
+        const NOW = Date.now();
+        // Definiere maximales Alter in Millisekunden
+        const MAX_AGE_MS = is72h ? (72 * 60 * 60 * 1000) : (7 * 24 * 60 * 60 * 1000);
+        
+        const initialCount = allItems.length;
+        
+        allItems = allItems.filter(item => {
+            // Verwerfe Items ohne validen Timestamp
+            if (!item.timestamp || isNaN(item.timestamp)) return false;
+            
+            // Berechne Alter
+            const ageMs = NOW - item.timestamp;
+            
+            // Strict Filter
+            return ageMs <= MAX_AGE_MS;
+        });
+
+        console.log(`🕒 Zeit-Filter: ${initialCount} -> ${allItems.length} Items verbleiben (Limit: ${is72h ? '72h' : '7 Tage'})`);
+        // ----------------------------------------------------------
+
         const uniqueItems = [];
         const urlsSeen = new Set();
         
@@ -214,7 +234,6 @@ export const handler = async (event) => {
 
         await updateJobStatus(jobId, "ANALYZING", `Erstelle SITREP (Situation Report)...`);
         
-        // SYSTEM PROMPT DEFINITION (Bleibt identisch zum Original)
         const systemPrompt = `DU BIST: Chief Intelligence Analyst (J2 Division).
         OPERATIVES ZIEL: Erstelle ein 'High-Level Intelligence Briefing' (SITREP) für politische und militärische Entscheidungsträger.
         ZIELGEBIET: "${location}" | BEOBACHTUNGSZEITRAUM: ${timeLabel}
@@ -270,7 +289,6 @@ export const handler = async (event) => {
         *Was wissen wir NICHT? (z.B. "Unklarheit über genaue Mannstärke in Sektor X").*`;
 
         // --- MISTRAL PIXTRAL SPEZIFISCHER AUFRUF ---
-        // Korrektur: Mistral nutzt 'messages' Payload Struktur, nicht 'inferenceConfig'
         const mistralPayload = {
             messages: [
                 { 
@@ -293,8 +311,6 @@ export const handler = async (event) => {
         const res = await bedrockClient.send(command);
         const jsonResponse = JSON.parse(new TextDecoder().decode(res.body));
         
-        // --- MISTRAL RESPONSE PARSING ---
-        // Mistral Struktur: choices[0].message.content
         const finalReport = jsonResponse.choices[0].message.content;
 
         await ddbClient.send(new UpdateItemCommand({

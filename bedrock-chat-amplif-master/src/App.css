@@ -312,3 +312,38 @@ body {
   .message-wrapper { max-width: 95%; }
   .navbar select { max-width: 160px; font-size: 0.8rem; }
 }
+/* Beispiel für App.css zur Vereinheitlichung der Textgrößen */
+
+.markdown-content .report-h1 {
+    font-size: 1.5em; /* Reduziert H1 */
+    margin-top: 1.5em;
+    padding-bottom: 0.5em;
+    border-bottom: 1px solid var(--border-color); /* Optionale Trennlinie */
+}
+
+.markdown-content .report-h2 {
+    font-size: 1.25em; /* Reduziert H2 */
+    margin-top: 1.25em;
+}
+
+.markdown-content .report-h3 {
+    font-size: 1.1em; /* Reduziert H3 */
+    margin-top: 1em;
+}
+
+.markdown-content .report-p,
+.markdown-content .report-li {
+    font-size: 1em; /* Standard-Textgröße beibehalten */
+    line-height: 1.6;
+}
+
+/* Anpassung der Positionierung für die neue shortcut-bar */
+.input-container {
+    display: flex;
+    flex-direction: column; /* Stellt sicher, dass die Elemente untereinander liegen */
+}
+
+.shortcut-bar {
+    margin-top: 10px; /* Abstand zur Textarea */
+    margin-bottom: 5px;
+}
