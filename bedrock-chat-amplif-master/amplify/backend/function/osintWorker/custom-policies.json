@@ -1,6 +1,25 @@
 [
   {
-    "Action": [],
-    "Resource": []
+    "Effect": "Allow",
+    "Action": [
+      "bedrock:InvokeModel"
+    ],
+    "Resource": [
+      "arn:aws:bedrock:eu-central-1::foundation-model/*"
+    ]
+  },
+  {
+    "Effect": "Allow",
+    "Action": [
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+      "dynamodb:Scan"
+    ],
+    "Resource": [
+      "arn:aws:dynamodb:eu-central-1:*:table/OsintJobs",
+      "arn:aws:dynamodb:eu-central-1:*:table/OsintJobs/index/*"
+    ]
   }
 ]

@@ -17,5 +17,28 @@
     "Resource": [
       "*"
     ]
+  },
+  {
+    "Effect": "Allow",
+    "Action": [
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+      "dynamodb:Scan"
+    ],
+    "Resource": [
+      "arn:aws:dynamodb:eu-central-1:*:table/OsintJobs",
+      "arn:aws:dynamodb:eu-central-1:*:table/OsintJobs/index/*"
+    ]
+  },
+  {
+    "Effect": "Allow",
+    "Action": [
+      "lambda:InvokeFunction"
+    ],
+    "Resource": [
+      "arn:aws:lambda:eu-central-1:*:function:osintWorker-*"
+    ]
   }
 ]

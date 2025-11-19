@@ -1,8 +1,8 @@
 /* Amplify Params - DO NOT EDIT
-    ENV
-    REGION
-    STORAGE_OSINTJOBS_NAME
-    NAME: BEDROCKFUNCTION
+   ENV
+   REGION
+   STORAGE_OSINTJOBS_NAME
+   NAME: BEDROCKFUNCTION
 Amplify Params - DO NOT EDIT */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -11,19 +11,22 @@ import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-
 import { v4 as uuidv4 } from 'uuid';
 
 // --- KONFIGURATION ---
-const REGION = process.env.REGION || 'us-east-1';
+const ENV = process.env.ENV;
+const REGION = process.env.REGION || 'eu-central-1'; // Deine Deployment Region
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
 
-// WICHTIG: Wir zwingen den Code, immer den "dev" Worker zu nehmen, um Fehler zu vermeiden
-const WORKER_FUNCTION_NAME = 'osintWorker-dev'; 
+// WICHTIG: Automatische Anpassung an die Umgebung (dev/prod)
+// Verhindert, dass 'prod' versucht, 'dev' aufzurufen.
+const WORKER_FUNCTION_NAME = `osintWorker-${ENV}`; 
 
 // --- CLIENTS ---
-const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' }); // Bedrock ist in us-east-1
+// Bedrock muss oft in us-east-1 genutzt werden, wenn Models in eu-central-1 nicht verfügbar sind
+const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' }); 
 const lambdaClient = new LambdaClient({ region: REGION });
 const ddbClient = new DynamoDBClient({ region: REGION });
 
 export const handler = async (event) => {
-    // CORS Header für React
+    // CORS Header sind essenziell für den Zugriff vom Browser
     const headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "*",
@@ -46,7 +49,7 @@ export const handler = async (event) => {
                 return {
                     statusCode: 404,
                     headers,
-                    body: JSON.stringify({ status: "NOT_FOUND", message: "Job noch nicht bereit" })
+                    body: JSON.stringify({ status: "NOT_FOUND", message: "Job nicht gefunden oder noch nicht initialisiert." })
                 };
             }
 
@@ -56,7 +59,6 @@ export const handler = async (event) => {
                 body: JSON.stringify({
                     jobId,
                     status: data.Item.status?.S || "UNKNOWN",
-                    // NEU: Message auch zurückgeben
                     message: data.Item.message?.S || "", 
                     result: data.Item.result?.S || ""
                 })
@@ -78,41 +80,43 @@ export const handler = async (event) => {
             const jobId = uuidv4();
             const timestamp = new Date().toISOString();
 
-            // 1. Eintrag in DB erstellen (damit Polling sofort etwas findet)
+            console.log(`Starte OSINT Job: ${jobId} für Umgebung: ${ENV} -> Worker: ${WORKER_FUNCTION_NAME}`);
+
+            // 1. Eintrag in DB erstellen (Initialer Status)
             await ddbClient.send(new PutItemCommand({
                 TableName: TABLE_NAME,
                 Item: {
                     id: { S: jobId },
-                    status: { S: "QUEUED" }, // Status: In Warteschlange
+                    status: { S: "QUEUED" },
+                    message: { S: "Job wird an Worker übergeben..." },
                     createdAt: { S: timestamp },
                     prompt: { S: prompt }
                 }
             }));
 
-            // 2. Worker asynchron starten
+            // 2. Worker asynchron starten (Invoke)
             const workerPayload = { jobId, prompt };
             
             await lambdaClient.send(new InvokeCommand({
                 FunctionName: WORKER_FUNCTION_NAME, 
-                InvocationType: 'Event', // 'Event' = Fire & Forget (Async)
+                InvocationType: 'Event', // 'Event' bedeutet: Nicht auf Antwort warten (Asynchron)
                 Payload: JSON.stringify(workerPayload)
             }));
 
-            // 3. Sofort antworten
+            // 3. Sofort dem Frontend antworten, dass der Job läuft
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({ 
                     jobId: jobId, 
                     status: "QUEUED",
-                    message: "OSINT Analyse gestartet." 
+                    message: "OSINT Analyse gestartet. Bitte warten..." 
                 })
             };
         }
 
-        // >>> FALL B: STANDARD CHAT / VISION (Direkte Antwort) <<<
+        // >>> FALL B: STANDARD CHAT / VISION (Synchron) <<<
         else {
-            // Payload für Claude 3 bauen
             let userMessageContent = [{ type: "text", text: prompt || "Hallo" }];
 
             if (imageBase64) {
@@ -148,11 +152,11 @@ export const handler = async (event) => {
         }
 
     } catch (error) {
-        console.error("ERROR in BedrockFunction:", error);
+        console.error("CRITICAL ERROR in BedrockFunction:", error);
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: error.message })
+            body: JSON.stringify({ error: error.message, hint: "Check CloudWatch logs for details." })
         };
     }
 };

@@ -63,5 +63,38 @@
         "bedrockAPI": {}
       }
     }
+  },
+  "prod": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-bedrockchatamplif-prod-3dcaa-authRole",
+      "UnauthRoleArn": "arn:aws:iam::746669223294:role/amplify-bedrockchatamplif-prod-3dcaa-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::746669223294:role/amplify-bedrockchatamplif-prod-3dcaa-authRole",
+      "Region": "eu-central-1",
+      "DeploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
+      "UnauthRoleName": "amplify-bedrockchatamplif-prod-3dcaa-unauthRole",
+      "StackName": "amplify-bedrockchatamplif-prod-3dcaa",
+      "StackId": "arn:aws:cloudformation:eu-central-1:746669223294:stack/amplify-bedrockchatamplif-prod-3dcaa/823f6790-c534-11f0-975f-021a10eec5d1",
+      "AmplifyAppId": "d1dqldim0bjrdf"
+    },
+    "categories": {
+      "auth": {
+        "bedrockchatamplif": {}
+      },
+      "function": {
+        "bedrockFunction": {
+          "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
+          "s3Key": "amplify-builds/bedrockFunction-653464514c6d37664441-build.zip",
+          "storageOsintjobsName": "OsintJobs"
+        },
+        "osintWorker": {
+          "deploymentBucketName": "amplify-bedrockchatamplif-prod-3dcaa-deployment",
+          "s3Key": "amplify-builds/osintWorker-576a49623237484f5738-build.zip",
+          "storageOsintjobsName": "OsintJobs"
+        }
+      },
+      "api": {
+        "bedrockAPI": {}
+      }
+    }
   }
 }

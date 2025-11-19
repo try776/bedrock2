@@ -1,8 +1,8 @@
 /* Amplify Params - DO NOT EDIT
-    ENV
-    REGION
-    STORAGE_OSINTJOBS_NAME
-    NAME: OSINTWORKER
+   ENV
+   REGION
+   STORAGE_OSINTJOBS_NAME
+   NAME: OSINTWORKER
 Amplify Params - DO NOT EDIT */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -10,39 +10,45 @@ import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-// KONFIGURATION
+// --- KONFIGURATION ---
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
-// Erhöht auf 10, um nach dem Filtern noch genug übrig zu haben
+const REGION = process.env.REGION || "eu-central-1";
 const MAX_SOURCES_PER_CATEGORY = 10; 
-const TIMEOUT_MS = 6000; // Reduziert auf 6s pro Feed, damit Gesamtzeit kürzer bleibt
+const TIMEOUT_MS = 6000;
 
-// AWS CLIENTS
-const MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'; 
+// --- CLIENTS ---
+// Bedrock nutzen wir hier aus us-east-1 für maximale Modell-Verfügbarkeit
 const bedrockClient = new BedrockRuntimeClient({ region: 'us-east-1' }); 
-const ddbClient = new DynamoDBClient({ region: process.env.REGION });
+// DynamoDB ist in deiner lokalen Region (eu-central-1)
+const ddbClient = new DynamoDBClient({ region: REGION });
+const MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'; 
 
-// HILFSFUNKTION: Status-Update in DynamoDB schreiben
+// HILFSFUNKTION: Status in DynamoDB aktualisieren
 async function updateJobStatus(jobId, status, message = "") {
+    console.log(`STATUS UPDATE [${jobId}]: ${status} - ${message}`);
     try {
         await ddbClient.send(new UpdateItemCommand({
             TableName: TABLE_NAME,
             Key: { id: { S: jobId } },
-            UpdateExpression: "SET #s = :s, #msg = :m",
-            ExpressionAttributeNames: { "#s": "status", "#msg": "message" }, // 'message' Feld für UI Feedback
-            ExpressionAttributeValues: { ":s": { S: status }, ":m": { S: message } }
+            UpdateExpression: "SET #s = :s, #msg = :m, #u = :u",
+            ExpressionAttributeNames: { "#s": "status", "#msg": "message", "#u": "updatedAt" },
+            ExpressionAttributeValues: { 
+                ":s": { S: status }, 
+                ":m": { S: message },
+                ":u": { S: new Date().toISOString() }
+            }
         }));
-    } catch (e) { console.warn("Status update failed", e); }
+    } catch (e) { 
+        console.error("Failed to update status in DynamoDB:", e); 
+    }
 }
 
-/**
- * Generiert Such-Vektoren inkl. einer "General" Fallback-Kategorie
- */
+// Such-Vektoren generieren
 const generateSearchVectors = (topic, timeParam) => {
     const baseUrl = "https://news.google.com/rss/search?hl=de&gl=CH&ceid=CH:de&scoring=n";
     const encodedTopic = encodeURIComponent(topic);
     
     const sectors = [
-        // NEU: Generelle Suche als "Staubsauger" für alle News, falls spezifische Sektoren leer sind
         { id: "GENERAL_NEWS", query: `${encodedTopic}` }, 
         { id: "POLITICS", query: `${encodedTopic} (Regierung OR Parlament OR Gesetz OR Abstimmung)` },
         { id: "SECURITY", query: `${encodedTopic} (Polizei OR Kriminalität OR Unfall OR Sicherheit)` },
@@ -56,10 +62,11 @@ const generateSearchVectors = (topic, timeParam) => {
     }));
 };
 
+// Daten abrufen
 async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
     try {
         const response = await axios.get(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OsintBot/2.1; +http://example.com)' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; OsintBot/2.2; +http://your-app.com)' },
             timeout: TIMEOUT_MS 
         });
 
@@ -76,14 +83,10 @@ async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
             
             const pubDateObj = new Date(pubDateRaw);
             
-            // STRIKTER 72H FILTER
+            // Zeit-Filter prüfen
             if (timeLimitDate && pubDateObj < timeLimitDate) return;
 
-            const formattedDate = !isNaN(pubDateObj) 
-                ? pubDateObj.toISOString().split('T')[0] 
-                : "Unbekannt";
-
-            // Beschreibung bereinigen
+            // HTML aus Beschreibung entfernen
             let rawDesc = $(element).find('description').text();
             let cleanDesc = rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 300);
 
@@ -91,7 +94,7 @@ async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
                 items.push({
                     id: `${sourceLabel}_${i}`,
                     source: source,
-                    date: formattedDate,
+                    date: !isNaN(pubDateObj) ? pubDateObj.toISOString().split('T')[0] : "N/A",
                     timestamp: pubDateObj.getTime(),
                     title: title,
                     summary: cleanDesc,
@@ -101,18 +104,28 @@ async function fetchFeedData(url, sourceLabel, timeLimitDate = null) {
         });
         return items;
     } catch (error) {
-        // Wir loggen nur, brechen aber nicht ab. Leere Liste zurückgeben.
-        console.warn(`Fetch failed for ${sourceLabel}: ${error.message}`);
+        console.warn(`Skipping feed ${sourceLabel}: ${error.message}`);
         return [];
     }
 }
 
 export const handler = async (event) => {
-    console.log("🚀 WORKER STARTED");
+    console.log("🚀 OSINT WORKER STARTED", JSON.stringify(event));
+    
     let payload = event;
-    if (event.body) { try { payload = JSON.parse(event.body); } catch(e){} }
+    // Falls der Payload als String im Body kommt (manchmal bei Direct Invoke)
+    if (event.body && typeof event.body === 'string') { 
+        try { payload = JSON.parse(event.body); } catch(e){} 
+    } else if (event.body && typeof event.body === 'object') {
+        payload = event.body;
+    }
+
     const { jobId, prompt } = payload; 
-    if (!jobId) return;
+    
+    if (!jobId) {
+        console.error("❌ KEINE JOB ID ERHALTEN. Abbruch.");
+        return;
+    }
 
     try {
         const rawPrompt = (prompt || "Unbekannt");
@@ -124,19 +137,18 @@ export const handler = async (event) => {
         let limitDate = null;
         if (is72h) limitDate = new Date(Date.now() - (72 * 60 * 60 * 1000));
 
-        // 1. STATUS UPDATE: GATHERING
-        await updateJobStatus(jobId, "FETCHING", `Durchsuche Quellen nach '${searchTopic}'...`);
+        // 1. GATHERING PHASE
+        await updateJobStatus(jobId, "FETCHING", `Scanne Nachrichten zu: '${searchTopic}'...`);
 
         const searchVectors = generateSearchVectors(searchTopic, timeParam);
         const fetchPromises = searchVectors.map(vec => fetchFeedData(vec.url, vec.label, limitDate));
         
-        // Wichtig: Wir warten auf alle, auch wenn welche fehlschlagen (Fehler werden in fetchFeedData abgefangen)
         const results = await Promise.all(fetchPromises);
         
         let allItems = results.flat();
         allItems.sort((a, b) => b.timestamp - a.timestamp);
 
-        // Deduplizierung (Verbessert: Nutzt Titel + Quelle um "gleiche Story andere Zeitung" zu behalten, aber exakte Duplikate zu löschen)
+        // Deduplizierung
         const uniqueItems = [];
         const urlsSeen = new Set();
         allItems.forEach(item => {
@@ -146,26 +158,26 @@ export const handler = async (event) => {
             }
         });
 
-        console.log(`📦 Found ${uniqueItems.length} items`);
+        console.log(`📦 Gefundene Artikel: ${uniqueItems.length}`);
 
         if (uniqueItems.length === 0) {
-            throw new Error(`Keine aktuellen Nachrichten in den letzten ${is72h ? '72h' : '7 Tagen'} gefunden.`);
+            throw new Error(`Keine Nachrichten im Zeitraum (${timeLabel}) gefunden.`);
         }
 
-        // 2. STATUS UPDATE: ANALYZING
-        await updateJobStatus(jobId, "ANALYZING", `${uniqueItems.length} Artikel gefunden. KI analysiert Zusammenhänge...`);
+        // 2. ANALYZING PHASE
+        await updateJobStatus(jobId, "ANALYZING", `${uniqueItems.length} Artikel gefunden. Starte KI-Analyse...`);
 
-        const intelContext = JSON.stringify(uniqueItems.slice(0, 45)); // Max 45 Items für Puffer
+        // Kontext begrenzen, damit Prompt nicht explodiert
+        const intelContext = JSON.stringify(uniqueItems.slice(0, 45)); 
 
         const systemPrompt = `
 DU BIST: Elite Intelligence Analyst. 
-AUFTRAG: Erstelle einen OSINT-Lagebericht für "${searchTopic}".
+AUFTRAG: Erstelle einen professionellen OSINT-Lagebericht für "${searchTopic}".
 
 QUELLEN-REGELN:
 - Nutze NUR die bereitgestellten JSON-Daten.
-- Zeige IMMER das Datum (Feld "date") an.
-- Kopiere die URL (Feld "url") 1:1.
-- Priorisiere Ereignisse, die jünger als 24h sind.
+- Halluziniere KEINE Fakten.
+- Datum Format: YYYY-MM-DD.
 
 OUTPUT FORMAT (Markdown):
 
@@ -175,17 +187,17 @@ OUTPUT FORMAT (Markdown):
 ## 📌 KRITISCHE ENTWICKLUNGEN
 
 1. **[Prägnante Schlagzeile]**
-   - **Sachverhalt:** Was ist passiert? (Faktenbasiert)
-   - **Implikation:** Was bedeutet das für Stabilität/Sicherheit?
-   - 📅 *[YYYY-MM-DD]* | 🔗 [Quelle](URL_HIER)
+   - **Fakten:** Was ist passiert?
+   - **Analyse:** Bedeutung/Auswirkung.
+   - 📅 *[Datum]* | 🔗 [Quelle](URL)
 
-(Maximal 6 wichtigste Themen)
+(Maximal 5-6 wichtigste Cluster)
 
 ---
 ## ⚠️ RISIKO-MATRIX
 * **Trend:** [Positiv / Negativ / Neutral]
 * **Sicherheitslage:** [Ruhig / Angespannt / Kritisch]
-* **Assessment:** Kurze Einschätzung der Gesamtlage für Entscheidungsträger.
+* **Fazit:** Strategische Zusammenfassung (2-3 Sätze).
 `;
 
         const command = new InvokeModelCommand({
@@ -203,21 +215,24 @@ OUTPUT FORMAT (Markdown):
         const jsonResponse = JSON.parse(new TextDecoder().decode(res.body));
         const finalReport = jsonResponse.content[0].text;
 
-        // 3. FINALER STATUS
+        // 3. ABSCHLUSS
         await ddbClient.send(new UpdateItemCommand({
             TableName: TABLE_NAME,
             Key: { id: { S: jobId } },
-            UpdateExpression: "SET #s = :s, #r = :r, #u = :u",
-            ExpressionAttributeNames: { "#s": "status", "#r": "result", "#u": "updatedAt" },
+            UpdateExpression: "SET #s = :s, #r = :r, #u = :u, #msg = :m",
+            ExpressionAttributeNames: { "#s": "status", "#r": "result", "#u": "updatedAt", "#msg": "message" },
             ExpressionAttributeValues: { 
                 ":s": { S: "COMPLETED" }, 
                 ":r": { S: finalReport },
+                ":m": { S: "Analyse abgeschlossen." },
                 ":u": { S: new Date().toISOString() }
             }
         }));
+        
+        console.log("✅ JOB COMPLETED");
 
     } catch (error) {
-        console.error("❌ FAILED:", error);
-        await updateJobStatus(jobId, "FAILED", `Fehler: ${error.message}`);
+        console.error("❌ JOB FAILED:", error);
+        await updateJobStatus(jobId, "FAILED", `Abbruch: ${error.message}`);
     }
 };
