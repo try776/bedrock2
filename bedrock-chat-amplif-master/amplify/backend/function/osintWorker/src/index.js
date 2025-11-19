@@ -1,8 +1,8 @@
 /* Amplify Params - DO NOT EDIT
-    ENV
-    REGION
-    STORAGE_OSINTJOBS_NAME
-    NAME: OSINTWORKER
+   ENV
+   REGION
+   STORAGE_OSINTJOBS_NAME
+   NAME: OSINTWORKER
 Amplify Params - DO NOT EDIT */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -12,6 +12,7 @@ import * as cheerio from 'cheerio';
 
 // --- KONFIGURATION ---
 const TABLE_NAME = process.env.STORAGE_OSINTJOBS_NAME || "OsintJobs";
+// Erzwinge eu-central-1 oder nutze Environment
 const REGION = process.env.REGION || "eu-central-1"; 
 const MAX_SOURCES_PER_VECTOR = 20; 
 const TIMEOUT_MS = 25000; 
@@ -30,9 +31,9 @@ const IGNORE_DOMAINS = ['tripadvisor', 'booking', 'pinterest', 'ebay', 'temu', '
 const bedrockClient = new BedrockRuntimeClient({ region: REGION }); 
 const ddbClient = new DynamoDBClient({ region: REGION });
 
-// MODEL: Amazon Nova Pro (Cross-Region Inference Profile ID für EU)
-// Stelle sicher, dass du Zugriff auf "eu.amazon.nova-pro-v1:0" hast
-const MODEL_ID = "mistral.pixtral-large-2502-v1:0";
+// MODEL: MISTRAL PIXTRAL (EU INFERENCE PROFILE)
+// WICHTIG: Nutzt das EU-Profil, um Throughput-Fehler in Frankfurt zu vermeiden.
+const MODEL_ID = "eu.mistral.pixtral-large-2502-v1:0";
 
 // --- HILFSFUNKTIONEN ---
 
@@ -157,7 +158,7 @@ async function fetchRSS(url, label) {
 }
 
 export const handler = async (event) => {
-    console.log("🚀 OSINT WORKER v6 (MILITARY GRADE) STARTED");
+    console.log("🚀 OSINT WORKER v6 (MISTRAL PIXTRAL EDITION) STARTED");
     
     let payload = event.body && typeof event.body === 'string' ? JSON.parse(event.body) : (event.body || event);
     const { jobId, prompt } = payload; 
@@ -212,6 +213,8 @@ export const handler = async (event) => {
         }));
 
         await updateJobStatus(jobId, "ANALYZING", `Erstelle SITREP (Situation Report)...`);
+        
+        // SYSTEM PROMPT DEFINITION (Bleibt identisch zum Original)
         const systemPrompt = `DU BIST: Chief Intelligence Analyst (J2 Division).
         OPERATIVES ZIEL: Erstelle ein 'High-Level Intelligence Briefing' (SITREP) für politische und militärische Entscheidungsträger.
         ZIELGEBIET: "${location}" | BEOBACHTUNGSZEITRAUM: ${timeLabel}
@@ -265,30 +268,24 @@ export const handler = async (event) => {
 
         ## ⚠️ INTELLIGENCE GAPS (Lücken)
         *Was wissen wir NICHT? (z.B. "Unklarheit über genaue Mannstärke in Sektor X").*`;
-        // --- AMAZON NOVA SPEZIFISCHER AUFRUF ---
+
+        // --- MISTRAL PIXTRAL SPEZIFISCHER AUFRUF ---
+        // Korrektur: Mistral nutzt 'messages' Payload Struktur, nicht 'inferenceConfig'
+        const mistralPayload = {
+            messages: [
+                { 
+                    role: 'user', 
+                    content: systemPrompt + "\n\n" + "Generiere den Bericht jetzt auf Basis der gelieferten Intelligence Daten." 
+                }
+            ],
+            max_tokens: 4096,
+            temperature: 0.7,
+            top_p: 0.9
+        };
+
         const command = new InvokeModelCommand({
             modelId: MODEL_ID,
-            body: JSON.stringify({
-                // Nova nutzt "inferenceConfig" für Tokens & Temp
-                inferenceConfig: {
-                    max_new_tokens: 4096,
-                    temperature: 0.7,
-                    top_p: 0.9
-                },
-                // System Prompt als Array von Objekten
-                system: [
-                    { text: systemPrompt }
-                ],
-                // Messages Content als Array von Objekten
-                messages: [
-                    { 
-                        role: 'user', 
-                        content: [
-                            { text: "Generiere den Bericht jetzt auf Basis der gelieferten Intelligence Daten." }
-                        ] 
-                    }
-                ]
-            }),
+            body: JSON.stringify(mistralPayload),
             contentType: 'application/json',
             accept: 'application/json'
         });
@@ -296,9 +293,9 @@ export const handler = async (event) => {
         const res = await bedrockClient.send(command);
         const jsonResponse = JSON.parse(new TextDecoder().decode(res.body));
         
-        // --- AMAZON NOVA RESPONSE PARSING ---
-        // Nova Struktur: output.message.content[0].text
-        const finalReport = jsonResponse.output.message.content[0].text;
+        // --- MISTRAL RESPONSE PARSING ---
+        // Mistral Struktur: choices[0].message.content
+        const finalReport = jsonResponse.choices[0].message.content;
 
         await ddbClient.send(new UpdateItemCommand({
             TableName: TABLE_NAME,
