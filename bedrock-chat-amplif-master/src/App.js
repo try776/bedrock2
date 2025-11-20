@@ -6,7 +6,7 @@ import './App.css';
 
 // --- KONSTANTEN & TYPEN ---
 const apiName = 'bedrockAPI'; 
-const MAX_TEXTAREA_HEIGHT = 150; 
+const MAX_TEXTAREA_HEIGHT = 120; 
 const POLLING_INTERVAL = 3000; 
 const MAX_POLLING_ATTEMPTS = 200; 
 
@@ -48,6 +48,7 @@ function App() {
         scrollToBottom();
     }, [messages, loadingText, scrollToBottom]);
 
+    // Auto-Resize für Textarea
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto'; 
@@ -83,9 +84,7 @@ function App() {
     };
 
     const copyToClipboard = useCallback((text) => {
-        // Sicherstellen, dass text ein String ist (falls Array von react-markdown kommt)
         const stringText = Array.isArray(text) ? text.join('') : String(text);
-        
         navigator.clipboard.writeText(stringText).then(() => {
             console.log("Text kopiert"); 
         }).catch(err => {
@@ -93,7 +92,6 @@ function App() {
         });
     }, []);
 
-    // 🔥 FIX: children und node destrukturieren, um Prop-Fehler zu vermeiden
     const markdownComponents = useMemo(() => ({
         h1: ({ node, children, ...props }) => <h1 className="report-h1" {...props}>{children}</h1>,
         h2: ({ node, children, ...props }) => <h2 className="report-h2" {...props}>{children}</h2>,
@@ -107,12 +105,11 @@ function App() {
             <div className="table-wrapper"><table {...props}>{children}</table></div>
         ),
         code: ({ node, inline, className, children, ...props }) => {
-            // Code Block Logik sicherer machen
             return inline ? 
               <code className="inline-code" {...props}>{children}</code> :
               <div className="code-block-wrapper">
                   <pre className="code-block" {...props}><code>{children}</code></pre>
-                  <button className="copy-code-btn" onClick={() => copyToClipboard(children)}>📋 Copy</button>
+                  <button className="copy-code-btn" onClick={() => copyToClipboard(children)}>Copy</button>
               </div>
         }
     }), [copyToClipboard]);
@@ -148,10 +145,10 @@ function App() {
         while (jobStatus !== "COMPLETED" && jobStatus !== "FAILED" && attempts < MAX_POLLING_ATTEMPTS) {
             attempts++;
             
-            if (jobStatus === "QUEUED") setLoadingText(`⏳ In Warteschlange (${attempts}/${MAX_POLLING_ATTEMPTS})...`);
-            else if (jobStatus === "FETCHING") setLoadingText(`🔍 Sammle Daten (${attempts}/${MAX_POLLING_ATTEMPTS})...`);
-            else if (jobStatus === "ANALYZING") setLoadingText(`🧠 KI Analysiert (${attempts}/${MAX_POLLING_ATTEMPTS})...`);
-            else setLoadingText(`Verarbeite (${attempts}/${MAX_POLLING_ATTEMPTS})...`);
+            if (jobStatus === "QUEUED") setLoadingText(`⏳ Warteschlange (${attempts})...`);
+            else if (jobStatus === "FETCHING") setLoadingText(`🔍 Sammle Daten (${attempts})...`);
+            else if (jobStatus === "ANALYZING") setLoadingText(`🧠 KI Analysiert (${attempts})...`);
+            else setLoadingText(`Verarbeite (${attempts})...`);
 
             await wait(POLLING_INTERVAL); 
 
@@ -172,21 +169,21 @@ function App() {
                 }
                 
                 if (jobStatus === "FAILED") {
-                    return { success: false, message: checkData.result || checkData.message || "Analyse fehlgeschlagen (Polling-Fehler)." };
+                    return { success: false, message: checkData.result || checkData.message || "Analyse fehlgeschlagen." };
                 }
                 
             } catch (networkError) {
-                console.warn("Polling error (ignoring temporary network glitch):", networkError);
+                console.warn("Polling error:", networkError);
                 continue; 
             }
         }
         
         if (!finalResult && jobStatus !== "FAILED") {
-            return { success: false, message: `Zeitüberschreitung nach ${attempts * POLLING_INTERVAL / 1000} Sekunden.` };
+            return { success: false, message: `Zeitüberschreitung.` };
         }
         
         return { success: true, result: finalResult };
-    }, []); // startPolling benötigt keine Abhängigkeiten, wenn wait global ist
+    }, []);
 
     const handleSubmit = useCallback(async (e, shortcutPrompt = null) => {
         if (e) e.preventDefault();
@@ -225,13 +222,12 @@ function App() {
         let imageMediaType = null;
         
         if (imageFile && !isOsintMode) {
-            setLoadingText('Bild wird hochgeladen und konvertiert...');
+            setLoadingText('Bild Upload...');
             try {
                 imageBase64 = await fileToBase64(imageFile);
                 imageMediaType = imageFile.type;
             } catch (err) {
-                console.error("Bild Fehler", err);
-                setMessages((prev) => [...prev, { author: 'ai', type: 'error', content: "Fehler beim Bild-Upload. Bitte versuchen Sie es erneut." }]);
+                setMessages((prev) => [...prev, { author: 'ai', type: 'error', content: "Fehler beim Bild-Upload." }]);
                 setIsLoading(false);
                 setLoadingText('Bereit.');
                 return;
@@ -239,7 +235,7 @@ function App() {
         }
 
         try {
-            setLoadingText('Initialisiere Analyse...');
+            setLoadingText('Starte...');
             
             const bodyPayload = {
                 prompt: effectivePrompt,
@@ -267,12 +263,12 @@ function App() {
             } else if (startData.response) {
                 setMessages((prev) => [...prev, { author: 'ai', type: 'text', content: startData.response }]);
             } else {
-                throw new Error("Ungültige oder leere Serverantwort. (Weder jobId noch response vorhanden)");
+                throw new Error("Ungültige Serverantwort.");
             }
 
         } catch (error) {
             console.error('App Error:', error);
-            let errMsg = "Verbindungsfehler zum Server.";
+            let errMsg = "Verbindungsfehler.";
             if (error.message) errMsg = error.message;
             setMessages((prev) => [...prev, { author: 'ai', type: 'error', content: `❌ ${errMsg}` }]);
         } finally {
@@ -287,7 +283,7 @@ function App() {
         if (action === "72h") { 
             if (!prompt) { 
                 setPrompt(isOsintMode ? "Land oder Region eingeben" : "");
-                alert("Bitte geben Sie zuerst ein Land oder eine Region in das Textfeld ein."); 
+                alert("Bitte geben Sie zuerst ein Land oder eine Region ein."); 
                 return; 
             }
             const prefix = "MODE_72H";
@@ -311,147 +307,135 @@ function App() {
             clearImageData();
         }
         if (messages.length > 0) {
-            if (window.confirm("Der Moduswechsel leert den aktuellen Chat. Fortfahren?")) {
+            if (window.confirm("Moduswechsel leert den Chat. OK?")) {
                 setMessages([]);
                 setPrompt('');
             } else {
-                setSelectedTask(selectedTask); 
+                // Reset select if user cancels
             }
         }
     };
 
     return (
         <div className="App">
-            <nav className="navbar">
-                <div className="navbar-content">
-                    <div className="nav-brand">
-                        <span className="brand-icon">✧</span>
-                        <span className="brand-name">Intelligence Suite</span>
-                    </div>
+            {/* --- HEADER --- */}
+            <header>
+                <div className="header-content">
+                    <select 
+                        className="mode-select"
+                        value={selectedTask} 
+                        onChange={handleTaskChange} 
+                        disabled={isLoading}
+                    >
+                        {osintTasks.map((task) => <option key={task.value} value={task.value}>{task.name}</option>)}
+                    </select>
                     
-                    <div className="nav-controls">
-                        <div className="mode-selector">
-                            <select 
-                                id="task-select" 
-                                value={selectedTask} 
-                                onChange={handleTaskChange} 
-                                disabled={isLoading}
-                            >
-                                {osintTasks.map((task) => <option key={task.value} value={task.value}>{task.name}</option>)}
-                            </select>
-                            <span className={`mode-badge ${isOsintMode ? 'badge-osint' : 'badge-vision'}`}>
-                                {isOsintMode ? "PRO OSINT" : "AI ASSISTANT"}
-                            </span>
+                    {messages.length > 0 && (
+                         <button className="icon-btn" onClick={handleClearChat} title="Chat leeren" disabled={isLoading}>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                         </button>
+                    )}
+                </div>
+            </header>
+
+            {/* --- CHAT BEREICH --- */}
+            <div className="chat-container">
+                {messages.length === 0 ? (
+                    <div className="empty-state">
+                        <div style={{fontSize: "3rem", marginBottom: "1rem"}}>{isOsintMode ? "🌍" : "👋"}</div>
+                        <h3 style={{margin: "0 0 8px 0", fontWeight: 600}}>{isOsintMode ? "Lagezentrum" : "Hallo!"}</h3>
+                        <p>{isOsintMode ? "Region eingeben für 72h Scan." : "Was kann ich für dich tun?"}</p>
+                    </div>
+                ) : (
+                    messages.map((msg, index) => (
+                        <div key={index} className={`message ${msg.author === 'user' ? 'user' : 'bot'}`}>
+                            {msg.image && (
+                                <img src={msg.image} alt="Upload" className="message-image" style={{maxWidth: '100%', borderRadius: '8px', marginBottom: '8px'}} />
+                            )}
+                            <div className="markdown-content">
+                                <ReactMarkdown components={markdownComponents}>
+                                    {msg.content}
+                                </ReactMarkdown>
+                            </div>
                         </div>
-                        {messages.length > 0 && (
-                            <button className="clear-btn" onClick={handleClearChat} title="Chat leeren" disabled={isLoading}>🗑️</button>
+                    ))
+                )}
+
+                {isLoading && (
+                    <div className="loading-bubble">
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <span style={{marginLeft: '10px', fontSize: '0.85rem', color: '#6b7280'}}>{loadingText}</span>
+                    </div>
+                )}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* --- INPUT BEREICH (Fixed Bottom) --- */}
+            <form className="input-area" onSubmit={handleSubmit}>
+                
+                {/* Shortcuts / Bildvorschau (Floating above Input) */}
+                {(imagePreviewUrl || (!isLoading && !prompt && !isOsintMode)) && (
+                    <div className="floating-extras">
+                        {imagePreviewUrl && (
+                            <div className="image-preview-chip">
+                                <img src={imagePreviewUrl} alt="Preview" />
+                                <button type="button" onClick={clearImageData}>×</button>
+                            </div>
+                        )}
+                        {!imagePreviewUrl && !isOsintMode && !prompt && (
+                            <div className="shortcuts">
+                                <button type="button" onClick={() => handleShortcutSubmit("Erkläre mir die News.")}>News</button>
+                                <button type="button" onClick={() => handleShortcutSubmit("Python Code Beispiel.")}>Code</button>
+                            </div>
                         )}
                     </div>
-                </div>
-            </nav>
+                )}
 
-            <div className="chat-window">
-                <div className="chat-container-width">
-                    {messages.length === 0 ? (
-                        <div className="empty-state">
-                            <div className="empty-icon">{isOsintMode ? "🌍" : "👋"}</div>
-                            <h3>{isOsintMode ? "Lagezentrum" : "Wie kann ich helfen?"}</h3>
-                            <p>{isOsintMode ? "Geben Sie ein Land oder eine Region ein, um einen Echtzeit-Bericht zu erstellen." : "Laden Sie ein Bild hoch oder stellen Sie eine Frage."}</p>
-                        </div>
-                    ) : (
-                        messages.map((msg, index) => (
-                            <div key={index} className={`message-wrapper ${msg.author}`}>
-                                <div className={`message-bubble ${msg.type === 'error' ? 'error' : ''}`}>
-                                    {msg.image && <img src={msg.image} alt="Upload" className="uploaded-image" loading="lazy" />} 
-                                    {msg.content && (
-                                      <div className="markdown-content">
-                                        <ReactMarkdown components={markdownComponents}>
-                                            {msg.content}
-                                        </ReactMarkdown>
-                                      </div>
-                                    )}
-                                    {msg.author === 'ai' && msg.type !== 'error' && (
-                                        <div className="msg-actions">
-                                            <button onClick={() => copyToClipboard(msg.content)} className="action-btn" title="Antwort kopieren">📋</button>
-                                        </div>
-                                    )}
-                                </div>
-                                <span className="message-role">{msg.author === 'user' ? 'Sie' : 'AI Analyst'}</span>
-                            </div>
-                        ))
-                    )}
-                    {isLoading && (
-                        <div className="message-wrapper ai">
-                            <div className="loading-bubble">
-                                <div className="typing-dot"></div>
-                                <div className="typing-dot"></div>
-                                <div className="typing-dot"></div>
-                                <span className="loading-text">{loadingText}</span>
-                            </div>
+                {/* Input Zeile */}
+                <div className="input-row">
+                    {!isOsintMode && (
+                        <div className="file-input-wrapper">
+                            <input type="file" id="file-upload" accept="image/*" onChange={handleImageChange} disabled={isLoading} style={{display:'none'}} />
+                            <label htmlFor="file-upload" className="icon-btn" title="Bild hochladen">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 1 5.66 5.66l-9.2 9.19a2 2 0 1-2.83-2.83l8.49-8.48"></path>
+                                </svg>
+                            </label>
                         </div>
                     )}
-                    <div ref={messagesEndRef} />
-                </div>
-            </div>
 
-            <div className="input-area-wrapper">
-                <form className="input-container" onSubmit={handleSubmit}>
-                    {imageFile && !isOsintMode && (
-                      <div className="file-preview">
-                        <div className="preview-thumb">
-                            <img src={imagePreviewUrl} alt="Vorschau" />
-                        </div>
-                        <span className="file-name">{imageFile.name}</span>
-                        <button type="button" className="remove-file" onClick={clearImageData} disabled={isLoading}>×</button>
-                      </div>
-                    )}
-
-                    <div className="input-row">
-                      {!isOsintMode && (
-                        <div className="upload-wrapper">
-                          <input type="file" id="file-upload" accept="image/*" onChange={handleImageChange} disabled={isLoading} />
-                          <label htmlFor="file-upload" className={`icon-button ${isLoading ? 'disabled' : ''}`} title="Bild hochladen">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 1 5.66 5.66l-9.2 9.19a2 2 0 1-2.83-2.83l8.49-8.48"></path></svg>
-                          </label>
-                        </div>
-                      )}
-                      
-                      <textarea
+                    <textarea
+                        className="input-field"
                         ref={textareaRef}
-                        value={prompt} 
+                        value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={isOsintMode ? "Z.B. 'Berlin' oder 'Japan' für den 72h-Scan" : "Nachricht eingeben... (Shift+Enter für neue Zeile)"} 
-                        disabled={isLoading} 
+                        placeholder={isOsintMode ? "Region für 72h Scan..." : "Nachricht..."}
+                        disabled={isLoading}
                         rows={1}
-                      />
-                      
-                      {(!isOsintMode && (!!prompt || !!imageFile)) && (
-                          <button type="submit" className="send-button" disabled={isLoading || (!prompt && !imageFile)}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                          </button>
-                      )}
-                    </div>
+                    />
 
-                    {!isLoading && (
-                        <div className="shortcut-bar">
-                            {isOsintMode ? (
-                                <>
-                                    <button type="button" className="chip-button primary" onClick={() => handleShortcutSubmit("72h")}>⚡ 72h Scan starten</button>
-                                </>
-                            ) : (
-                                !prompt && (
-                                    <>
-                                        {imageFile && <button type="button" className="chip-button" onClick={() => handleSubmit(null, "Was ist auf dem Bild?")}>🖼️ Bild analysieren</button>}
-                                        <button type="button" className="chip-button" onClick={() => handleShortcutSubmit("Erkläre mir die wichtigsten News von heute.")}>Wichtige News</button>
-                                        <button type="button" className="chip-button" onClick={() => handleShortcutSubmit("Generiere ein Python-Skript für API-Zugriff.")}>Code Beispiel</button>
-                                    </>
-                                )
-                            )}
-                        </div>
+                    {isOsintMode && !isLoading && prompt && (
+                         <button type="button" className="send-button" style={{backgroundColor: '#ef4444'}} onClick={() => handleShortcutSubmit("72h")}>
+                            72h
+                         </button>
                     )}
-                </form>
-            </div>
+
+                    {(!isOsintMode || (isOsintMode && prompt)) && (
+                        <button type="submit" className="send-button" disabled={isLoading || (!prompt && !imageFile)}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            </form>
         </div>
     );
 }
