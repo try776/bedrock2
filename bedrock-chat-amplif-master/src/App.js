@@ -271,7 +271,7 @@ function App() {
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Region eingeben (z.B. 'Berlin')..."
+                        placeholder="Region eingeben (z.B. 'Paris')..."
                         disabled={isLoading}
                         rows={1}
                     />
