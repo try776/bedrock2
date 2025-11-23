@@ -1,18 +1,23 @@
 /* src/App.css */
 
+/* --- CYBER / HUD DESIGN TOKENS --- */
 :root {
-  --bg-color: #ffffff;
-  --chat-bg: #ffffff;
-  --input-bg: #f9fafb;
-  --border-color: #e5e7eb;
-  --primary-color: #000000; /* Modernes Schwarz */
-  --primary-text: #ffffff;
-  --secondary-bg: #f3f4f6;
-  --text-main: #111827;
-  --text-muted: #6b7280;
-  --radius-lg: 20px;
+  --bg-deep: #020617; /* Tiefes Weltraum-Schwarz/Blau */
+  --bg-panel: rgba(15, 23, 42, 0.6); /* Dunkles Glas */
+  
+  /* Die Farben aus deinem Bild (Cyan/Electric Blue/White) */
+  --neon-cyan: #06b6d4; 
+  --neon-blue: #3b82f6;
+  --text-glow: #e2e8f0;
+  
+  --glass-border: 1px solid rgba(6, 182, 212, 0.3); /* Leuchtender Rand */
+  --glass-highlight: 1px solid rgba(255, 255, 255, 0.15);
+  
+  --radius-xl: 20px;
   --radius-sm: 8px;
-  --spacing: 16px;
+  
+  --shadow-neon: 0 0 15px rgba(6, 182, 212, 0.15), inset 0 0 20px rgba(6, 182, 212, 0.05);
+  --font-tech: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 * {
@@ -24,31 +29,54 @@ body, html {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-main);
+  font-family: var(--font-tech);
+  background-color: var(--bg-deep);
+  color: var(--text-glow);
   overflow: hidden;
+  
+  /* --- HINTERGRUND: DIGITALER DATENSTROM (Anlehnung an dein Bild) --- */
+  background-image: 
+    /* Layer 1: Globaler blauer Schein */
+    radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 60%),
+    /* Layer 2: Das "Gitter" / Netz */
+    repeating-linear-gradient(90deg, rgba(6, 182, 212, 0.03) 0px, rgba(6, 182, 212, 0.03) 1px, transparent 1px, transparent 40px),
+    repeating-linear-gradient(0deg, rgba(6, 182, 212, 0.03) 0px, rgba(6, 182, 212, 0.03) 1px, transparent 1px, transparent 40px),
+    /* Layer 3: Abstrakte Kurven (Verzerrung) */
+    radial-gradient(ellipse at 100% 0%, rgba(59, 130, 246, 0.2) 0%, transparent 50%);
+    
+  background-size: 100% 100%;
+  animation: pulseGlow 10s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 2% 2%; } /* Sanfte Bewegung */
 }
 
 .App {
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  max-width: 800px;
+  max-width: 950px;
   margin: 0 auto;
-  background: var(--chat-bg);
   position: relative;
+  background: transparent;
+  
+  /* Ein feiner Rahmen um die ganze App wie ein Bildschirm */
+  box-shadow: 0 0 50px rgba(0,0,0,0.5);
 }
 
-/* --- Header --- */
+/* --- HEADER (HUD TOP BAR) --- */
 header {
-  padding: 12px var(--spacing);
-  border-bottom: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(10px);
+  border-bottom: var(--glass-border);
   z-index: 10;
-  position: sticky;
-  top: 0;
+  display: flex;
+  justify-content: center;
+  /* Tech-Linie oben */
+  border-top: 2px solid rgba(6, 182, 212, 0.5);
 }
 
 .header-content {
@@ -56,59 +84,53 @@ header {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  max-width: 950px;
 }
 
-.mode-select {
-  padding: 6px 12px;
-  border-radius: 18px;
-  border: 1px solid var(--border-color);
-  background-color: var(--secondary-bg);
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-main);
-  outline: none;
-  cursor: pointer;
-  appearance: none; /* Entfernt Standard-Pfeil auf manchen Browsern */
-  text-align: center;
-}
-
-/* Icon Buttons (Header & Input) */
-.icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  color: var(--text-muted);
-  transition: background 0.2s, color 0.2s;
+/* Logo Text im Tech-Look */
+.header-content div {
+  font-family: monospace; /* Code-Look */
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.6);
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 10px;
+}
+
+/* Reset Button */
+.icon-btn {
+  background: rgba(6, 182, 212, 0.1);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px; /* Eckiger für Tech-Look */
+  color: var(--neon-cyan);
+  transition: all 0.2s ease;
 }
 
 .icon-btn:hover:not(:disabled) {
-  background-color: var(--secondary-bg);
-  color: var(--text-main);
+  background: var(--neon-cyan);
+  color: #000;
+  box-shadow: 0 0 15px var(--neon-cyan);
 }
 
-.icon-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-/* --- Chat Area --- */
+/* --- CHAT AREA --- */
 .chat-container {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing);
-  padding-bottom: 20px; /* Abstand vor Input Area wird durch Padding im Input geregelt */
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   scroll-behavior: smooth;
+  scrollbar-width: none; 
 }
 
-/* Empty State */
+/* Empty State (Hologramm Style) */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -116,215 +138,233 @@ header {
   justify-content: center;
   height: 100%;
   text-align: center;
-  padding: 40px 20px;
-  color: var(--text-muted);
+  color: var(--neon-cyan);
   opacity: 0.8;
 }
+.empty-state h3 { 
+    text-transform: uppercase; 
+    letter-spacing: 0.1em; 
+    text-shadow: 0 0 10px rgba(6,182,212,0.5);
+}
 
-/* --- Messages --- */
+/* --- MESSAGES (HUD PANELS) --- */
 .message {
-  max-width: 85%;
-  padding: 12px 18px;
+  max-width: 90%;
+  padding: 24px;
   border-radius: var(--radius-lg);
   font-size: 1rem;
-  line-height: 1.5;
+  line-height: 1.6;
   position: relative;
-  word-wrap: break-word;
-  animation: fadeIn 0.3s ease-out;
+  backdrop-filter: blur(5px);
+  animation: hologramIn 0.4s ease-out;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes hologramIn {
+  from { opacity: 0; transform: scaleY(0.9) translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: scaleY(1) translateY(0); filter: blur(0); }
 }
 
+/* User Message (Rechts, Solid Tech) */
 .message.user {
   align-self: flex-end;
-  background-color: var(--primary-color);
-  color: var(--primary-text);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.5);
+  color: #fff;
   border-bottom-right-radius: 4px;
+  box-shadow: var(--shadow-neon);
+  text-shadow: 0 0 5px rgba(0,0,0,0.5);
 }
 
+/* Bot Message (Der SITREP Report - Das "Fenster" aus deinem Bild) */
 .message.bot {
   align-self: flex-start;
-  background-color: var(--secondary-bg);
-  color: var(--text-main);
+  background: rgba(15, 23, 42, 0.7); /* Dunkles Panel */
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid var(--neon-cyan); /* Tech Akzent links */
   border-bottom-left-radius: 4px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  
+  /* HUD Ecken Effekt (oben rechts) */
+  background-image: linear-gradient(135deg, transparent 95%, rgba(6, 182, 212, 0.2) 100%);
 }
 
-/* Markdown Styling Fixes inside Messages */
-.message p { margin: 0 0 8px 0; }
-.message p:last-child { margin: 0; }
-.message pre { 
-  background: rgba(0,0,0,0.05); 
-  padding: 10px; 
-  border-radius: 8px; 
-  overflow-x: auto; 
+/* --- MARKDOWN STYLING (Cyber Style) --- */
+.markdown-content h1 { 
+    font-family: monospace;
+    text-transform: uppercase;
+    color: var(--neon-cyan);
+    font-size: 1.5rem; 
+    margin-bottom: 1.2rem; 
+    border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+    padding-bottom: 10px;
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
 }
-.message code { font-family: monospace; font-size: 0.9em; }
+.markdown-content h2 { 
+    color: #fff;
+    font-size: 1.2rem; 
+    margin-top: 1.8rem; 
+    margin-bottom: 0.8rem; 
+    display: flex;
+    align-items: center;
+}
+/* Ein kleines Viereck vor H2 Headlines für den Tech Look */
+.markdown-content h2::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--neon-blue);
+    margin-right: 10px;
+    box-shadow: 0 0 8px var(--neon-blue);
+}
 
-/* Lade-Indikator */
+.markdown-content p { margin-bottom: 1rem; color: #cbd5e1; }
+.markdown-content strong { color: var(--neon-cyan); font-weight: 600; }
+.markdown-content a { color: var(--neon-blue); text-decoration: none; border-bottom: 1px dashed var(--neon-blue); }
+.markdown-content a:hover { color: #fff; border-style: solid; text-shadow: 0 0 8px var(--neon-blue); }
+
+.code-block { 
+    background: rgba(0, 0, 0, 0.6) !important; 
+    border: 1px solid rgba(255,255,255,0.1); 
+    color: var(--neon-cyan) !important;
+    font-family: monospace;
+}
+
+/* Loading Animation (Radar Scanner) */
 .loading-bubble {
   align-self: flex-start;
-  background-color: var(--secondary-bg);
-  padding: 12px 18px;
-  border-radius: var(--radius-lg);
-  border-bottom-left-radius: 4px;
+  background: rgba(6, 182, 212, 0.1);
+  padding: 16px 24px;
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(6, 182, 212, 0.3);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  color: var(--neon-cyan);
+  font-family: monospace;
+  font-size: 0.85rem;
 }
 
 .dot {
   width: 6px;
   height: 6px;
-  background-color: #9ca3af;
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out both;
+  background-color: var(--neon-cyan);
+  border-radius: 0; /* Quadratische Pixel statt Kreise */
+  animation: flash 1s infinite alternate;
+  box-shadow: 0 0 8px var(--neon-cyan);
 }
-.dot:nth-child(1) { animation-delay: -0.32s; }
-.dot:nth-child(2) { animation-delay: -0.16s; }
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes flash {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
 }
 
-/* --- Input Area (Fixed Bottom) --- */
+/* --- INPUT AREA (HUD CONTROL) --- */
 .input-area {
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid var(--border-color);
-  padding: 12px var(--spacing);
-  padding-bottom: max(12px, env(safe-area-inset-bottom)); /* Für iPhone Home Bar */
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  backdrop-filter: blur(10px);
+  padding: 20px 24px;
+  background: transparent;
   position: relative;
   z-index: 20;
 }
 
-/* Floating Extras (Shortcuts & Previews) */
-.floating-extras {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-/* Shortcut Chips */
-.shortcuts {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.shortcuts button {
-  background: #fff;
-  border: 1px solid var(--border-color);
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  color: var(--text-main);
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-.shortcuts button:hover {
-  background: var(--secondary-bg);
-  border-color: #d1d5db;
-  transform: translateY(-1px);
-}
-
-/* Image Preview Chip */
-.image-preview-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fff;
-  padding: 4px 8px 4px 4px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-}
-
-.image-preview-chip img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.image-preview-chip button {
-  background: none;
-  border: none;
-  color: #ef4444;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-}
-
-/* Input Row Layout */
+/* Ein "Panel" hinter dem Input wie im Bild */
 .input-row {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
-  width: 100%;
+  gap: 12px;
+  background: rgba(2, 6, 23, 0.8);
+  backdrop-filter: blur(15px);
+  padding: 12px;
+  padding-left: 24px;
+  border-radius: 12px; /* Weniger rund, mehr technisch */
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+  
+  /* HUD Ecken unten */
+  position: relative;
 }
 
-.file-input-wrapper {
-  display: flex;
-  align-items: center;
-  height: 48px; /* Match button height */
+/* HUD Brackets (Dekoration an den Ecken des Inputs) */
+.input-row::before, .input-row::after {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--neon-cyan);
+    opacity: 0.5;
+    pointer-events: none;
+    transition: all 0.3s;
+}
+.input-row::before { top: -1px; left: -1px; border-right: none; border-bottom: none; border-top-left-radius: 8px; }
+.input-row::after { bottom: -1px; right: -1px; border-left: none; border-top: none; border-bottom-right-radius: 8px; }
+
+.input-row:focus-within::before, .input-row:focus-within::after {
+    opacity: 1;
+    box-shadow: 0 0 10px var(--neon-cyan);
 }
 
 .input-field {
   flex: 1;
-  padding: 12px 16px;
-  border-radius: 24px;
-  border: 1px solid var(--border-color);
-  background: var(--input-bg);
+  padding: 10px 0;
+  border: none;
+  background: transparent;
   font-size: 1rem;
   outline: none;
-  min-height: 48px;
-  max-height: 120px;
+  min-height: 24px;
+  max-height: 150px;
   resize: none;
-  font-family: inherit;
-  line-height: 1.4;
-  transition: border-color 0.2s, background 0.2s;
+  font-family: var(--font-tech);
+  color: #fff;
 }
 
-.input-field:focus {
-  border-color: var(--text-muted);
-  background: #fff;
+.input-field::placeholder {
+  color: rgba(255,255,255,0.3);
+  font-family: monospace;
 }
 
 .send-button {
-  background: var(--primary-color);
-  color: var(--primary-text);
-  border: none;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  background: rgba(6, 182, 212, 0.2);
+  color: var(--neon-cyan);
+  border: 1px solid var(--neon-cyan);
+  width: 48px;
+  height: 48px;
+  border-radius: 8px; /* Tech-Square */
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.1s, opacity 0.2s;
+  transition: all 0.2s;
   flex-shrink: 0;
-  margin-bottom: 2px; /* Alignment fix with textarea */
 }
 
-.send-button:active {
-  transform: scale(0.95);
+.send-button svg {
+  stroke-width: 2;
+}
+
+.send-button:hover:not(:disabled) {
+  background: var(--neon-cyan);
+  color: #000;
+  box-shadow: 0 0 20px var(--neon-cyan);
 }
 
 .send-button:disabled {
-  background-color: var(--border-color);
-  cursor: not-allowed;
-  opacity: 0.7;
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.1);
+  background: transparent;
+  cursor: default;
+}
+
+/* Copy Button */
+.copy-code-btn {
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    font-family: monospace;
+}
+.copy-code-btn:hover {
+    background: var(--neon-cyan);
+    color: #000;
 }
