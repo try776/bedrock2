@@ -236,7 +236,7 @@ function App() {
                 {messages.length === 0 ? (
                     <div className="empty-state">
                         <div style={{fontSize: "3rem", marginBottom: "1rem"}}>🌍</div>
-                        <h3 style={{margin: "0 0 8px 0", fontWeight: 600}}>Lagezentrum</h3>
+                        <h3 style={{margin: "0 0 8px 0", fontWeight: 600}}>Dashboard</h3>
                         <p>Region eingeben für 72h Scan.</p>
                     </div>
                 ) : (
